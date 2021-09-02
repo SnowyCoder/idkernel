@@ -2,6 +2,7 @@ use core::alloc::{Layout, GlobalAlloc};
 use core::{ptr, mem};
 use crate::allocator::Locked;
 use core::ptr::NonNull;
+use crate::println;
 
 /// The block sizes to use.
 ///
@@ -29,8 +30,9 @@ fn list_index(layout: &Layout) -> Option<usize> {
 impl FixedSizeBlockAllocator {
     /// Creates an empty FixedSizeBlockAllocator.
     pub const fn new() -> Self {
+        const EMPTY: Option<&'static mut ListNode> = None;
         FixedSizeBlockAllocator {
-            list_heads: [None; BLOCK_SIZES.len()],
+            list_heads: [EMPTY; BLOCK_SIZES.len()],
             fallback_allocator: linked_list_allocator::Heap::empty(),
         }
     }
@@ -55,6 +57,7 @@ impl FixedSizeBlockAllocator {
 
 unsafe impl GlobalAlloc for Locked<FixedSizeBlockAllocator> {
     unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
+        //println!("ALLOC!: {:?}", layout);
         let mut allocator = self.lock();
         match list_index(&layout) {
             Some(index) => match allocator.list_heads[index].take() {
@@ -76,6 +79,7 @@ unsafe impl GlobalAlloc for Locked<FixedSizeBlockAllocator> {
     }
 
     unsafe fn dealloc(&self, ptr: *mut u8, layout: Layout) {
+        //println!("DEALLOC!: {:?}", layout);
         let mut allocator = self.lock();
         match list_index(&layout) {
             Some(index) => {

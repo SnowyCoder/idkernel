@@ -2,8 +2,7 @@
 #![feature(abi_x86_interrupt)]
 #![feature(alloc_error_handler)]
 #![feature(const_mut_refs)]
-#![feature(const_in_array_repeat_expressions)]
-#![feature(wake_trait)]
+#![feature(core_intrinsics)]
 #![cfg_attr(test, no_main)]
 #![feature(custom_test_frameworks)]
 #![test_runner(crate::test_runner)]
@@ -14,31 +13,40 @@ extern crate alloc;
 #[cfg(test)]
 use bootloader::{BootInfo, entry_point};
 use core::panic::PanicInfo;
+use x86_64::{PhysAddr, VirtAddr};
+use core::sync::atomic::{Ordering, AtomicU64};
 
 pub mod allocator;
+pub mod arch;
 pub mod gdt;
 pub mod interrupts;
-pub mod memory;
 pub mod serial;
 pub mod task;
-pub mod vga_buffer;
+pub mod vga_framebuffer;
 
 #[cfg(test)]
 entry_point!(test_kernel_main);
 
 /// Entry point for `cargo test`
 #[cfg(test)]
-fn test_kernel_main(_boot_info: &'static BootInfo) -> ! {
-    init();
+fn test_kernel_main(boot_info: &'static mut BootInfo) -> ! {
+    init(boot_info.physical_memory_offset.into_option().unwrap());
     test_main();
     hlt_loop();
 }
 
 
-pub fn init() {
+pub fn init(phys_mem_off: u64) {
+    let paddr = PhysAddr::new(phys_mem_off);
+    unsafe {
+        arch::x86_64::paging::init_phys_mem_off(phys_mem_off);
+    }
     gdt::init();
     interrupts::init_idt();
-    unsafe { interrupts::PICS.lock().initialize() }; // new
+    unsafe {
+        let mut pic = interrupts::PICS.lock();
+        pic.initialize();
+    };
     x86_64::instructions::interrupts::enable();
 }
 

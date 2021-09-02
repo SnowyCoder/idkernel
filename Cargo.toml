@@ -4,6 +4,11 @@ version = "0.1.0"
 authors = ["Rossi Lorenzo <snowycoder@gmail.com>"]
 edition = "2018"
 
+[workspace]
+members = [
+    "boot",
+]
+
 [[test]]
 name = "should_panic"
 harness = false
@@ -14,14 +19,21 @@ harness = false
 
 
 [dependencies]
-bootloader = { version = "0.9", features = ["map_physical_memory"] }
-volatile = "0.2"
-spin = "0.5"
-x86_64 = "0.12"
+bootloader = "0.10"
+volatile = "0.2.6"
+spin = "0.5.2"
+x86_64 = "0.14"
 uart_16550 = "0.2"
-pic8259_simple = "0.2"
-pc-keyboard = "0.5"
-linked_list_allocator = "0.8"
+pic8259 = "0.10.1"
+pc-keyboard = "0.5.0"
+linked_list_allocator = "0.9.0"
+acpi = "2.0"
+raw-cpuid = "10.2"
+font8x8 = { version="0.2", default-features=false, features=["unicode"]}
+
+[features]
+default = ["multi_core"]
+multi_core = []
 
 [dependencies.lazy_static]
 version = "1.4"
@@ -41,18 +53,15 @@ version = "0.3"
 default-features = false
 features = ["alloc"]
 
+[package.metadata.bootloader]
+map-physical-memory = true
+
 [profile.dev]
 #panic = "abort"
 
 [profile.release]
 #panic = "abort"
+opt-level = 3
+lto = true
 
-[package.metadata.bootimage]
-test-args = [
-    "-device", "isa-debug-exit,iobase=0xf4,iosize=0x04",
-    "-serial", "stdio",
-    "-display", "none"
-]
-test-success-exit-code = 33         # (0x10 << 1) | 1
-test-timeout = 300                  # (in seconds)
 

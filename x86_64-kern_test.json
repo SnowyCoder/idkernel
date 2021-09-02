@@ -9,8 +9,21 @@
     "executables": true,
     "linker-flavor": "ld.lld",
     "linker": "rust-lld",
+    "pre-link-args": {
+        "ld.lld": [
+			"--gc-sections",
+            "--static",
+            "--nostdlib",
+			"--script=layout.ld"
+        ]
+    },
     "panic-strategy": "abort",
     "disable-redzone": true,
-    "features": "-mmx,-sse,+soft-float"
+    "features": "-mmx,-sse,+soft-float",
+    "no-default-libraries": true,
+    "dynamic-linking": false,
+    "position-independent-executables": false,
+    "relocation-model": "pic",
+    "code-model": "kernel"
 }
 

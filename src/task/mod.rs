@@ -2,8 +2,7 @@ use alloc::boxed::Box;
 use core::future::Future;
 use core::pin::Pin;
 use core::task::{Context, Poll};
-use futures_util::core_reexport::sync::atomic::AtomicU64;
-use core::sync::atomic::Ordering;
+use core::sync::atomic::{Ordering, AtomicU64};
 
 pub mod executor;
 pub mod simple_executor;
@@ -34,5 +33,11 @@ impl Task {
 
     fn poll(&mut self, context: &mut Context) -> Poll<()> {
         self.future.as_mut().poll(context)
+    }
+}
+
+impl<T> From<T> for Task where T: Future<Output = ()> + 'static  {
+    fn from(x: T) -> Self {
+        Task::new(x)
     }
 }
