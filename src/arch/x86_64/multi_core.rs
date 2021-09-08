@@ -57,7 +57,7 @@ pub fn init_ap_processor(p: &Processor, frame_allocator: &mut impl FrameAllocato
         lapic.set_icr(icr);
     }
 
-    //println!("| Sending start IPI...");
+    println!("| Sending start IPI...");
     // Send START IPI
     {
         let ap_segment = (TRAMPOLINE_ADDR >> 12) & 0xFF;
@@ -70,7 +70,7 @@ pub fn init_ap_processor(p: &Processor, frame_allocator: &mut impl FrameAllocato
         lapic.set_icr(icr);
     }
 
-    //println!(" Trampoline...");
+    println!("| Trampoline...");
     // Wait for trampoline
     unsafe {
         while !Trampoline::is_ready() {

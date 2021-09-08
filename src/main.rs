@@ -38,11 +38,12 @@ fn kernel_main(boot_info: &'static mut BootInfo) -> ! {
     test_main();
 
     println!("It did not crash!");
-    kerneltest::arch::x86_64::acpi::init(&mut mapper, &mut frame_allocator, phys_mem_offset);
     for x in boot_info.memory_regions.iter() {
         println!("{:?}", x);
     }
 
+    kerneltest::arch::x86_64::acpi::init(&mut mapper, &mut frame_allocator, phys_mem_offset);
+    
     let mut executor = Executor::new();
     let spawner = executor.spawner().clone();
     executor.spawn(Task::new(example_task(spawner)));

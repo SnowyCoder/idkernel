@@ -3,7 +3,7 @@ use acpi::{AcpiTables, PhysicalMapping};
 use core::ptr::NonNull;
 use core::mem;
 use x86_64::structures::paging::{Size4KiB, FrameAllocator, Mapper};
-use crate::{arch::x86_64::apic::LOCAL_APIC, println};
+use crate::{arch::x86_64::apic::LOCAL_APIC, println, print};
 
 pub fn init(
     mapper: &mut impl Mapper<Size4KiB>,
@@ -19,7 +19,7 @@ pub fn init(
     let platform_info = tables.platform_info().expect("Unable to parse platform info");
 
 
-    println!("int: {:?}", platform_info.interrupt_model);
+    //println!("int: {:?}", platform_info.interrupt_model);
     match platform_info.interrupt_model {
         acpi::InterruptModel::Apic(apic) => {
             let lapic = unsafe { &mut LOCAL_APIC };
@@ -34,8 +34,11 @@ pub fn init(
     
     println!("pow: {:?}", platform_info.power_profile);
     if let Some(proc) = platform_info.processor_info {
-        println!("Boot: {:#?}", proc.boot_processor);
-        println!("Apps: {:#?}", proc.application_processors);
+        print!("Processors: [{:#?}]", proc.boot_processor.local_apic_id);
+        for x in proc.application_processors.iter() {
+            print!(" {}", x.local_apic_id);
+        }
+        println!();
 
         #[cfg(feature = "multi_core")]
             super::multi_core::init(frame_allocator, &proc);
@@ -50,15 +53,15 @@ struct CustomAcpiHandler(VirtAddr);
 
 impl acpi::AcpiHandler for CustomAcpiHandler {
     unsafe fn map_physical_region<T>(&self, physical_address: usize, size: usize) -> PhysicalMapping<Self, T> {
-        PhysicalMapping {
-            physical_start: physical_address,
-            virtual_start: NonNull::new((self.0 + physical_address as usize).as_mut_ptr::<T>()).unwrap(),
-            region_length: mem::size_of::<T>(),
-            mapped_length: mem::size_of::<T>(),
-            handler: self.clone()
-        }
+        PhysicalMapping::new(
+            physical_address,
+            NonNull::new((self.0 + physical_address as usize).as_mut_ptr::<T>()).unwrap(),
+            mem::size_of::<T>(),
+            mem::size_of::<T>(),
+            self.clone()
+        )
     }
 
-    fn unmap_physical_region<T>(&self, region: &PhysicalMapping<Self, T>) {
+    fn unmap_physical_region<T>(region: &PhysicalMapping<Self, T>) {
     }
 }
