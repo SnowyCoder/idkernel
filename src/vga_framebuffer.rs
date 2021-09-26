@@ -1,9 +1,8 @@
 use bootloader::boot_info::{FrameBuffer, PixelFormat};
-use font8x8::{UnicodeFonts, BASIC_UNICODE};
+use font8x8::BASIC_UNICODE;
 use alloc::fmt;
 use conquer_once::spin::OnceCell;
 use spin::Mutex;
-use core::fmt::Write;
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub struct Color(pub [u8; 3]);
@@ -42,8 +41,8 @@ impl VgaColorWriter {
             _ => panic!("Unrecognized format"),
         };
         let mut i = index;
-        for y1 in 0..(h*8) {
-            for x1 in 0..(w*8) {
+        for _y1 in 0..(h*8) {
+            for _x1 in 0..(w*8) {
                 for z in 0..pixels {
                     self.buffer.buffer_mut()[i + z] = color.0[z];
                 }

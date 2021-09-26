@@ -1,10 +1,12 @@
 #![no_std]
+#![feature(asm)]
 #![feature(abi_x86_interrupt)]
 #![feature(alloc_error_handler)]
 #![feature(const_mut_refs)]
 #![feature(core_intrinsics)]
-#![cfg_attr(test, no_main)]
 #![feature(custom_test_frameworks)]
+#![feature(thread_local)]
+#![cfg_attr(test, no_main)]
 #![test_runner(crate::test_runner)]
 #![reexport_test_harness_main = "test_main"]
 
@@ -13,8 +15,6 @@ extern crate alloc;
 #[cfg(test)]
 use bootloader::{BootInfo, entry_point};
 use core::panic::PanicInfo;
-use x86_64::{PhysAddr, VirtAddr};
-use core::sync::atomic::{Ordering, AtomicU64};
 
 pub mod allocator;
 pub mod arch;
@@ -37,11 +37,10 @@ fn test_kernel_main(boot_info: &'static mut BootInfo) -> ! {
 
 
 pub fn init(phys_mem_off: u64) {
-    let paddr = PhysAddr::new(phys_mem_off);
     unsafe {
         arch::x86_64::paging::init_phys_mem_off(phys_mem_off);
     }
-    gdt::init();
+    gdt::init_prepaging();
     interrupts::init_idt();
     unsafe {
         let mut pic = interrupts::PICS.lock();
@@ -107,6 +106,15 @@ pub fn hlt_loop() -> ! {
     loop {
         x86_64::instructions::hlt();
     }
+}
+
+// Simple loop not recognized by the compiler optimizators
+// this is really easy to unlock with gdb, just type
+// `set $pc += 2` and it'll return to your code
+// ( why can't I get breakpoints to work :( )
+#[inline(always)]
+pub fn gdb_loop() {
+    unsafe { asm!("2:", "jmp 2b"); }
 }
 
 #[alloc_error_handler]

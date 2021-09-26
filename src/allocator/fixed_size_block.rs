@@ -2,7 +2,6 @@ use core::alloc::{Layout, GlobalAlloc};
 use core::{ptr, mem};
 use crate::allocator::Locked;
 use core::ptr::NonNull;
-use crate::println;
 
 /// The block sizes to use.
 ///

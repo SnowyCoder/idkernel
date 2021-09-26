@@ -1,9 +1,5 @@
 use crate::println;
-use core::str;
-use acpi::{PhysicalMapping, AcpiTables};
-use x86_64::{PhysAddr, VirtAddr};
-use core::ptr::NonNull;
-use core::mem;
+use x86_64::VirtAddr;
 use raw_cpuid::CpuId;
 use x86_64::registers::model_specific::Msr;
 

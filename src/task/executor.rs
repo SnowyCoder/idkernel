@@ -2,7 +2,7 @@ use alloc::collections::BTreeMap;
 use crate::task::{TaskId, Task};
 use crossbeam_queue::ArrayQueue;
 use alloc::sync::Arc;
-use futures_util::task::{Waker, Spawn};
+use futures_util::task::Waker;
 use core::task::{Context, Poll};
 use alloc::task::Wake;
 
@@ -49,7 +49,7 @@ impl Executor {
         let Self {
             tasks,
             task_queue,
-            spawner: spawn_queue,
+            ..
         } = self;
 
         while let Some(task_id) = task_queue.pop() {
