@@ -10,11 +10,12 @@ use core::panic::PanicInfo;
 
 use bootloader::{BootInfo, entry_point};
 
-use kerneltest::arch::x86_64::paging;
+use kerneltest::arch::x86_64::paging::{self, explore_page_ranges, get_page_table, physical_memory_offset};
 use kerneltest::{allocator, gdt, println};
 use kerneltest::task::{executor::{Executor, Spawner}, keyboard, Task};
 use x86_64::VirtAddr;
 use kerneltest::vga_framebuffer::init_vga_framebuffer;
+use x86_64::structures::paging::{PageSize, PageTable, PageTableFlags, Size1GiB, Size2MiB};
 
 entry_point!(kernel_main);
 
@@ -60,6 +61,7 @@ fn kernel_main(boot_info: &'static mut BootInfo) -> ! {
     let mut executor = Executor::new();
     let spawner = executor.spawner().clone();
     executor.spawn(Task::new(example_task(spawner)));
+    executor.spawn(Task::new(print_tables()));
     //executor.spawn(Task::new(keyboard::print_keypresses()));
     executor.run_sync()
 }
@@ -73,6 +75,14 @@ async fn example_task(spawner: Spawner) {
     println!("async number: {}", num);
     spawner.spawn(keyboard::print_keypresses());
 }
+
+
+async fn print_tables() {
+    for (from, to, flags) in explore_page_ranges() {
+        println!("{:#014x}-{:#014x} {:?}", from, to, flags);
+    }
+}
+
 
 
 #[cfg(not(test))]

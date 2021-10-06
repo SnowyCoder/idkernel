@@ -6,6 +6,8 @@
 #![feature(core_intrinsics)]
 #![feature(custom_test_frameworks)]
 #![feature(thread_local)]
+#![feature(generators)]
+#![feature(generator_trait)]
 #![cfg_attr(test, no_main)]
 #![test_runner(crate::test_runner)]
 #![reexport_test_harness_main = "test_main"]
@@ -20,9 +22,12 @@ pub mod allocator;
 pub mod arch;
 pub mod gdt;
 pub mod interrupts;
+pub mod geniter;
 pub mod serial;
 pub mod task;
 pub mod vga_framebuffer;
+
+pub use geniter::GenIter;
 
 #[cfg(test)]
 entry_point!(test_kernel_main);

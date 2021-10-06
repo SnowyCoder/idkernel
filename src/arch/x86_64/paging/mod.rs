@@ -3,11 +3,13 @@ use core::sync::atomic::{AtomicU64, Ordering};
 use x86_64::{structures::paging::PageTable, VirtAddr, PhysAddr};
 use x86_64::structures::paging::OffsetPageTable;
 
+mod debug;
 mod frame_allocator;
 mod thread;
 
 pub use frame_allocator::{BootInfoFrameAllocator, init_frame_allocator, get_frame_allocator};
 pub use thread::setup_thread_data;
+pub use debug::explore_page_ranges;
 
 static PHYSICAL_MEMORY_OFFSET: AtomicU64 = AtomicU64::new(0);
 
