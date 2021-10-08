@@ -8,55 +8,59 @@ extern crate alloc;
 
 use core::panic::PanicInfo;
 
-use bootloader::{BootInfo, entry_point};
+use bootloader::{entry_point, BootInfo};
 
-use kerneltest::arch::x86_64::paging::{self, explore_page_ranges, get_page_table, physical_memory_offset};
-use kerneltest::{allocator, gdt, println};
-use kerneltest::task::{executor::{Executor, Spawner}, keyboard, Task};
-use x86_64::VirtAddr;
-use kerneltest::vga_framebuffer::init_vga_framebuffer;
-use x86_64::structures::paging::{PageSize, PageTable, PageTableFlags, Size1GiB, Size2MiB};
+use kerneltest::{
+    allocator,
+    allocator::get_frame_allocator,
+    arch::{
+        consts::check_boot_info,
+        paging::{self, explore_page_ranges, get_page_table},
+    },
+    gdt, println,
+    task::{
+        executor::{Executor, Spawner},
+        keyboard, Task,
+    },
+    vga_framebuffer::init_vga_framebuffer,
+};
+use x86_64::structures::paging::Translate;
 
 entry_point!(kernel_main);
 
 fn kernel_main(boot_info: &'static mut BootInfo) -> ! {
-    let boot_info_addr = VirtAddr::new(boot_info as *const _ as u64);
-    let fb = boot_info.framebuffer.as_mut().expect("No Framebuffer found");
-    unsafe { paging::init_frame_allocator(&boot_info.memory_regions) };
+    check_boot_info(boot_info);
+    let fb = boot_info
+        .framebuffer
+        .as_mut()
+        .expect("No Framebuffer found");
+    unsafe { paging::init_boot_frame_allocator(&boot_info.memory_regions) };
 
     init_vga_framebuffer(fb);
 
     println!("Setting up GDT");
-
-    let phisycal_mem_offset = boot_info.physical_memory_offset.into_option()
-        .expect("Physical memory info not found");
-    kerneltest::init(phisycal_mem_offset);
-
-    let phys_mem_offset = VirtAddr::new(phisycal_mem_offset);
-    let mut mapper = paging::get_page_table();
+    kerneltest::init();
+    allocator::init_heap(&boot_info.memory_regions);
 
     {
-        let mut frame_allocator = paging::get_frame_allocator();
+        let mut frame_allocator = get_frame_allocator();
 
         println!("Setting up thread data");
         unsafe {
             paging::setup_thread_data(0, &mut frame_allocator);
         }
-
-        gdt::init();
-
-        allocator::init_heap(&mut mapper, &mut *frame_allocator).expect("Heap initialization failed");
     }
+    gdt::init();
 
     #[cfg(test)]
     test_main();
 
-    println!("It did not crash!");
+    println!("Memory mapping:");
     for x in boot_info.memory_regions.iter() {
-        println!("{:?}", x);
+        println!("-{:#012x}-{:#012x} {:?}", x.start, x.end, x.kind);
     }
 
-    kerneltest::arch::x86_64::acpi::init(phys_mem_offset);
+    kerneltest::arch::acpi::init(boot_info.rsdp_addr.into_option().expect("Cannot find rsdp"));
 
     let mut executor = Executor::new();
     let spawner = executor.spawner().clone();
@@ -76,14 +80,21 @@ async fn example_task(spawner: Spawner) {
     spawner.spawn(keyboard::print_keypresses());
 }
 
-
 async fn print_tables() {
+    let table = get_page_table();
+
+    let translate = |from| (&table).translate_addr(from).unwrap().as_u64();
+
     for (from, to, flags) in explore_page_ranges() {
-        println!("{:#014x}-{:#014x} {:?}", from, to, flags);
+        println!(
+            "{:#018x}-{:#018x} -> {:#012x} {:?}",
+            from,
+            to,
+            translate(from),
+            flags
+        );
     }
 }
-
-
 
 #[cfg(not(test))]
 #[panic_handler]
@@ -99,7 +110,6 @@ fn panic(info: &PanicInfo) -> ! {
 fn panic(info: &PanicInfo) -> ! {
     kerneltest::test_panic_handler(info)
 }
-
 
 #[test_case]
 fn trivial_assertion() {

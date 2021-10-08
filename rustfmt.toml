@@ -1,0 +1,4 @@
+reorder_imports = true
+condense_wildcard_suffixes = true
+newline_style = "Unix"
+imports_granularity = "Crate"

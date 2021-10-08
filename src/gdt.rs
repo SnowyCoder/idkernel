@@ -1,9 +1,11 @@
-use x86_64::{structures::{
-    gdt::{Descriptor, GlobalDescriptorTable, SegmentSelector},
-    tss::TaskStateSegment,
-}};
-use x86_64::VirtAddr;
 use lazy_static::lazy_static;
+use x86_64::{
+    structures::{
+        gdt::{Descriptor, GlobalDescriptorTable, SegmentSelector},
+        tss::TaskStateSegment,
+    },
+    VirtAddr,
+};
 
 // GDT = Global DescriptorTable
 // It contains entries about the memory segments
@@ -19,18 +21,17 @@ struct Selectors {
 #[thread_local]
 static mut TSS: TaskStateSegment = TaskStateSegment::new();
 
-const DOUBLE_FAULT_STACK_SIZE: usize = 4096;// 4Kb
+const DOUBLE_FAULT_STACK_SIZE: usize = 4096; // 4Kb
 
 #[thread_local]
 static mut DOUBLE_FAULT_STACK: [u8; DOUBLE_FAULT_STACK_SIZE] = [0u8; DOUBLE_FAULT_STACK_SIZE];
 
-
 #[thread_local]
-static mut GDT: GlobalDescriptorTable =  GlobalDescriptorTable::new();
+static mut GDT: GlobalDescriptorTable = GlobalDescriptorTable::new();
 
 unsafe fn init_tss() {
     TSS.interrupt_stack_table[DOUBLE_FAULT_IST_INDEX as usize] = {
-        let stack_start = VirtAddr::from_ptr( &DOUBLE_FAULT_STACK );
+        let stack_start = VirtAddr::from_ptr(&DOUBLE_FAULT_STACK);
         let stack_end = stack_start + DOUBLE_FAULT_STACK_SIZE;
         stack_end
     };
@@ -42,7 +43,11 @@ unsafe fn init_gdt() -> Selectors {
     let code_selector = GDT.add_entry(Descriptor::kernel_code_segment());
     let data_selector = GDT.add_entry(Descriptor::kernel_data_segment());
     let tss_selector = GDT.add_entry(Descriptor::tss_segment(&TSS));
-    Selectors { code_selector, data_selector, tss_selector }
+    Selectors {
+        code_selector,
+        data_selector,
+        tss_selector,
+    }
 }
 
 lazy_static! {
@@ -55,13 +60,22 @@ lazy_static! {
         let code_selector = gdt.add_entry(Descriptor::kernel_code_segment());
         let data_selector = gdt.add_entry(Descriptor::kernel_data_segment());
         let tss_selector = gdt.add_entry(Descriptor::tss_segment(&GTSS));
-        (gdt, Selectors { code_selector, data_selector, tss_selector })
+        (
+            gdt,
+            Selectors {
+                code_selector,
+                data_selector,
+                tss_selector,
+            },
+        )
     };
 }
 
 pub fn init_prepaging() {
-    use x86_64::instructions::segmentation::{CS, SS, DS, ES, Segment};
-    use x86_64::instructions::tables::load_tss;
+    use x86_64::instructions::{
+        segmentation::{Segment, CS, DS, ES, SS},
+        tables::load_tss,
+    };
 
     unsafe {
         GGDT.0.load();
@@ -75,10 +89,11 @@ pub fn init_prepaging() {
     }
 }
 
-
 pub fn init() {
-    use x86_64::instructions::segmentation::{CS, SS, DS, ES, Segment};
-    use x86_64::instructions::tables::load_tss;
+    use x86_64::instructions::{
+        segmentation::{Segment, CS, DS, ES, SS},
+        tables::load_tss,
+    };
 
     unsafe {
         let selectors = init_gdt();

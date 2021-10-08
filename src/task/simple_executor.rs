@@ -1,6 +1,6 @@
-use alloc::collections::VecDeque;
 use super::Task;
-use core::task::{RawWaker, Waker, RawWakerVTable, Context, Poll};
+use alloc::collections::VecDeque;
+use core::task::{Context, Poll, RawWaker, RawWakerVTable, Waker};
 
 pub struct SimpleExecutor {
     task_queue: VecDeque<Task>,
@@ -22,7 +22,7 @@ impl SimpleExecutor {
             let waker = dummy_waker();
             let mut context = Context::from_waker(&waker);
             match task.poll(&mut context) {
-                Poll::Ready(()) => {},
+                Poll::Ready(()) => {}
                 Poll::Pending => self.task_queue.push_back(task),
             }
         }
@@ -40,5 +40,5 @@ fn dummy_raw_waker() -> RawWaker {
 }
 
 fn dummy_waker() -> Waker {
-    unsafe  { Waker::from_raw(dummy_raw_waker()) }
+    unsafe { Waker::from_raw(dummy_raw_waker()) }
 }

@@ -7,7 +7,7 @@ use core::panic::PanicInfo;
 use lazy_static::lazy_static;
 use x86_64::structures::idt::{InterruptDescriptorTable, InterruptStackFrame};
 
-use kerneltest::{exit_qemu, QemuExitCode, serial_println};
+use kerneltest::{exit_qemu, serial_println, QemuExitCode};
 
 lazy_static! {
     static ref TEST_IDT: InterruptDescriptorTable = {
@@ -25,7 +25,6 @@ lazy_static! {
 pub fn init_test_idt() {
     TEST_IDT.load();
 }
-
 
 #[no_mangle] // don't mangle the name of this function
 pub extern "C" fn _start() -> ! {
@@ -47,7 +46,6 @@ extern "x86-interrupt" fn test_double_fault_handler(
     exit_qemu(QemuExitCode::Success);
     loop {}
 }
-
 
 #[allow(unconditional_recursion)]
 fn stack_overflow() {

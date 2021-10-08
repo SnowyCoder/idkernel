@@ -1,10 +1,8 @@
-use alloc::collections::BTreeMap;
-use crate::task::{TaskId, Task};
-use crossbeam_queue::ArrayQueue;
-use alloc::sync::Arc;
-use futures_util::task::Waker;
+use crate::task::{Task, TaskId};
+use alloc::{collections::BTreeMap, sync::Arc, task::Wake};
 use core::task::{Context, Poll};
-use alloc::task::Wake;
+use crossbeam_queue::ArrayQueue;
+use futures_util::task::Waker;
 
 struct ExecutorTaskData {
     task: Task,
@@ -47,9 +45,7 @@ impl Executor {
 
         // Destructure to avoid closures capture of "self" (https://github.com/rust-lang/rust/issues/53488)
         let Self {
-            tasks,
-            task_queue,
-            ..
+            tasks, task_queue, ..
         } = self;
 
         while let Some(task_id) = task_queue.pop() {
@@ -57,7 +53,8 @@ impl Executor {
                 Some(task) => task,
                 None => continue, // task no longer exists
             };
-            let waker = task_data.waker_cache
+            let waker = task_data
+                .waker_cache
                 .get_or_insert_with(|| TaskWaker::new(task_id, task_queue.clone()));
 
             let mut context = Context::from_waker(waker);
@@ -102,12 +99,14 @@ struct TaskWaker {
 impl TaskWaker {
     fn new(task_id: TaskId, task_queue: Arc<ArrayQueue<TaskId>>) -> Waker {
         Waker::from(Arc::new(TaskWaker {
-            task_id, task_queue
+            task_id,
+            task_queue,
         }))
     }
 
     fn wake_task(&self) {
-        self.task_queue.push(self.task_id)
+        self.task_queue
+            .push(self.task_id)
             .expect("Failed to wake task, task_queue full");
     }
 }
@@ -124,18 +123,19 @@ impl Wake for TaskWaker {
 
 #[derive(Clone)]
 pub struct Spawner {
-    queue: Arc<ArrayQueue<Task>>
+    queue: Arc<ArrayQueue<Task>>,
 }
 
 impl Spawner {
     fn new(queue_cap: usize) -> Self {
         Spawner {
-            queue: Arc::new(ArrayQueue::new(queue_cap))
+            queue: Arc::new(ArrayQueue::new(queue_cap)),
         }
     }
 
     pub fn spawn<T: Into<Task>>(&self, task: T) {
-        self.queue.push(task.into())
+        self.queue
+            .push(task.into())
             .unwrap_or_else(|_task| panic!("Task spawn queue is full"));
     }
 }

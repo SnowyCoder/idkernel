@@ -1,14 +1,26 @@
-use x86_64::structures::paging::{Mapper, Size4KiB, FrameAllocator, Page, PageTableFlags};
-use x86_64::structures::paging::mapper::MapToError;
-use x86_64::VirtAddr;
+use crate::{
+    allocator::heap_frame::init_frame_allocator,
+    arch::{
+        consts::KERNEL_HEAP_START,
+        paging::{get_boot_frame_allocator, get_page_table},
+    },
+    memory::MemorySize,
+    println,
+};
+use bootloader::boot_info::MemoryRegions;
 use fixed_size_block::FixedSizeBlockAllocator;
+use x86_64::{
+    structures::paging::{
+        mapper::MapToError, FrameAllocator, Mapper, Page, PageSize, PageTableFlags, Size4KiB,
+    },
+    VirtAddr,
+};
 
-pub mod linked_list;
 pub mod fixed_size_block;
+mod heap_frame;
+pub mod linked_list;
 
-pub const HEAP_START: usize = 0x_4444_4444_0000;
-pub const HEAP_SIZE: usize = 100 * 1024; // 100 KiB
-
+pub use heap_frame::{get_frame_allocator, HeapFrameAllocator};
 
 #[global_allocator]
 static ALLOCATOR: Locked<FixedSizeBlockAllocator> = Locked::new(FixedSizeBlockAllocator::new());
@@ -30,33 +42,47 @@ impl<A> Locked<A> {
     }
 }
 
-pub fn init_heap(
-    mapper: &mut impl Mapper<Size4KiB>,
-    frame_allocator: &mut impl FrameAllocator<Size4KiB>,
-) -> Result<(), MapToError<Size4KiB>> {
-    let page_range = {
-        let heap_start = VirtAddr::new(HEAP_START as u64);
-        let heap_end = heap_start + HEAP_SIZE - 1u64;
-        let heap_start_page = Page::containing_address(heap_start);
-        let heap_end_page = Page::containing_address(heap_end);
-        Page::range_inclusive(heap_start_page, heap_end_page)
-    };
+pub fn init_heap(regions: &MemoryRegions) {
+    let mut boot_frame_alloc = get_boot_frame_allocator();
+    let mut mapper = get_page_table();
+    let heap_start = Page::containing_address(VirtAddr::new(KERNEL_HEAP_START as u64));
 
-    for page in page_range {
-        let frame = frame_allocator
+    let mut page = heap_start;
+    let mut allocated = 0 as u64;
+
+    let mut allocate_one = move || -> Result<(), MapToError<Size4KiB>> {
+        let frame = boot_frame_alloc
             .allocate_frame()
             .ok_or(MapToError::FrameAllocationFailed)?;
+
         let flags = PageTableFlags::PRESENT | PageTableFlags::WRITABLE;
         unsafe {
-            mapper.map_to(page, frame, flags, frame_allocator)?.flush();
+            mapper
+                .map_to(page, frame, flags, &mut *boot_frame_alloc)?
+                .flush();
         };
+        page += 1;
+        Ok(())
+    };
+
+    loop {
+        match allocate_one() {
+            Ok(_) => allocated += 1,
+            Err(_) => break,
+        }
     }
+
+    println!(
+        "Heap allocated: {}",
+        MemorySize((allocated * Size4KiB::SIZE) as usize)
+    );
 
     unsafe {
-        ALLOCATOR.lock().init(HEAP_START, HEAP_SIZE);
+        ALLOCATOR
+            .lock()
+            .init(KERNEL_HEAP_START, allocated * Size4KiB::SIZE);
+        init_frame_allocator(regions);
     }
-
-    Ok(())
 }
 
 fn align_up(addr: usize, align: usize) -> usize {

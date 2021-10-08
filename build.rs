@@ -6,8 +6,10 @@ fn compile_trampoline(out_dir: &str) {
     println!("cargo:rerun-if-changed=src/asm/x86_64/trampoline.asm");
 
     let status = Command::new("nasm")
-        .arg("-f").arg("bin")
-        .arg("-o").arg(format!("{}/trampoline", out_dir))
+        .arg("-f")
+        .arg("bin")
+        .arg("-o")
+        .arg(format!("{}/trampoline", out_dir))
         .arg("src/asm/x86_64/trampoline.asm")
         .status()
         .expect("Failed to run nasm");

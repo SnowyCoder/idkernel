@@ -1,12 +1,14 @@
 use alloc::boxed::Box;
-use core::future::Future;
-use core::pin::Pin;
-use core::task::{Context, Poll};
-use core::sync::atomic::{Ordering, AtomicU64};
+use core::{
+    future::Future,
+    pin::Pin,
+    sync::atomic::{AtomicU64, Ordering},
+    task::{Context, Poll},
+};
 
 pub mod executor;
-pub mod simple_executor;
 pub mod keyboard;
+pub mod simple_executor;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 struct TaskId(u64);
@@ -36,7 +38,10 @@ impl Task {
     }
 }
 
-impl<T> From<T> for Task where T: Future<Output = ()> + 'static  {
+impl<T> From<T> for Task
+where
+    T: Future<Output = ()> + 'static,
+{
     fn from(x: T) -> Self {
         Task::new(x)
     }

@@ -1,5 +1,7 @@
-use core::ops::{Generator, GeneratorState};
-use core::pin::Pin;
+use core::{
+    ops::{Generator, GeneratorState},
+    pin::Pin,
+};
 
 use alloc::boxed::Box;
 

@@ -1,7 +1,6 @@
 use crate::println;
-use x86_64::VirtAddr;
 use raw_cpuid::CpuId;
-use x86_64::registers::model_specific::Msr;
+use x86_64::{registers::model_specific::Msr, VirtAddr};
 
 const MSR_IA32_APIC_BASE: Msr = Msr::new(0x1B);
 // x2APIC ID register (READ ONLY)
@@ -35,7 +34,7 @@ const APICREG_TIMER: u32 = 0x320;
 
 pub static mut LOCAL_APIC: LocalApic = LocalApic {
     base_address: VirtAddr::zero(),
-    is_ver2: false
+    is_ver2: false,
 };
 
 pub struct LocalApic {
@@ -79,11 +78,15 @@ impl LocalApic {
     }
 
     unsafe fn read(&self, reg: u32) -> u32 {
-        (self.base_address + reg as usize).as_ptr::<u32>().read_volatile()
+        (self.base_address + reg as usize)
+            .as_ptr::<u32>()
+            .read_volatile()
     }
 
     unsafe fn write(&self, reg: u32, val: u32) {
-        (self.base_address + reg as usize).as_mut_ptr::<u32>().write_volatile(val);
+        (self.base_address + reg as usize)
+            .as_mut_ptr::<u32>()
+            .write_volatile(val);
     }
 
     pub fn id(&self) -> u32 {
@@ -107,9 +110,7 @@ impl LocalApic {
         if self.is_ver2 {
             unsafe { MSR_IA32_X2APIC_ICR.read() }
         } else {
-            unsafe {
-                (self.read(0x310) as u64) << 32 | self.read(0x300) as u64
-            }
+            unsafe { (self.read(0x310) as u64) << 32 | self.read(0x300) as u64 }
         }
     }
 

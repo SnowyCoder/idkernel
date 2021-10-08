@@ -1,7 +1,7 @@
-use bootloader::boot_info::{FrameBuffer, PixelFormat};
-use font8x8::BASIC_UNICODE;
 use alloc::fmt;
+use bootloader::boot_info::{FrameBuffer, PixelFormat};
 use conquer_once::spin::OnceCell;
+use font8x8::BASIC_UNICODE;
 use spin::Mutex;
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
@@ -41,8 +41,8 @@ impl VgaColorWriter {
             _ => panic!("Unrecognized format"),
         };
         let mut i = index;
-        for _y1 in 0..(h*8) {
-            for _x1 in 0..(w*8) {
+        for _y1 in 0..(h * 8) {
+            for _x1 in 0..(w * 8) {
                 for z in 0..pixels {
                     self.buffer.buffer_mut()[i + z] = color.0[z];
                 }
@@ -71,7 +71,8 @@ impl VgaColorWriter {
             for _x in 0..8 {
                 let bit = (splat_row & 1) != 0;
                 for z in 0..pixels {
-                    self.buffer.buffer_mut()[begin_pixel + i + z] = if bit { fg.0[z] } else { bg.0[z] };
+                    self.buffer.buffer_mut()[begin_pixel + i + z] =
+                        if bit { fg.0[z] } else { bg.0[z] };
                 }
                 i += self.buffer.info().bytes_per_pixel;
                 splat_row = splat_row >> 1;
@@ -140,12 +141,14 @@ impl fmt::Write for VgaColorWriter {
 static VGA_WRITER: OnceCell<Mutex<VgaColorWriter>> = OnceCell::uninit();
 
 pub fn init_vga_framebuffer(framebuffer: &'static mut FrameBuffer) {
-    VGA_WRITER.try_init_once(move || {
-        let mut buffer = VgaColorWriter::new(framebuffer);
-        buffer.clean_screen();
-        buffer.write_string("VGA text initializated\n");
-        Mutex::new(buffer)
-    }).expect("VGA writer already initialized");
+    VGA_WRITER
+        .try_init_once(move || {
+            let mut buffer = VgaColorWriter::new(framebuffer);
+            buffer.clean_screen();
+            buffer.write_string("VGA text initializated\n");
+            Mutex::new(buffer)
+        })
+        .expect("VGA writer already initialized");
 }
 
 #[macro_export]
@@ -165,7 +168,11 @@ pub fn _print(args: fmt::Arguments) {
     use x86_64::instructions::interrupts;
 
     interrupts::without_interrupts(|| {
-        VGA_WRITER.get().expect("VGA NOT INITIALIZED")
-            .lock().write_fmt(args).unwrap();
+        VGA_WRITER
+            .get()
+            .expect("VGA NOT INITIALIZED")
+            .lock()
+            .write_fmt(args)
+            .unwrap();
     });
 }

@@ -4,22 +4,23 @@ use std::{
     time::Duration,
 };
 
+#[rustfmt::skip]
 const RUN_ARGS: &[&str] = &[
     "--no-reboot",
     "--no-shutdown",
-
     "--enable-kvm",
     "-smp", "cores=2",
     "-cpu", "host",
     "-s", // Open a gdb server on port 1234
     //"-S",
 ];
+
+#[rustfmt::skip]
 const TEST_ARGS: &[&str] = &[
     "--enable-kvm",
     "-device", "isa-debug-exit,iobase=0xf4,iosize=0x04",
     "-serial", "stdio",
-    "-display",
-    "none",
+    "-display", "none",
     "--no-reboot",
 ];
 const TEST_TIMEOUT_SECS: u64 = 10;

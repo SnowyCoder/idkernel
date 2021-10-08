@@ -1,7 +1,10 @@
-use core::alloc::{Layout, GlobalAlloc};
-use core::{ptr, mem};
-use crate::allocator::Locked;
-use core::ptr::NonNull;
+use core::{
+    alloc::{GlobalAlloc, Layout},
+    mem, ptr,
+    ptr::NonNull,
+};
+
+use super::Locked;
 
 /// The block sizes to use.
 ///
@@ -41,8 +44,9 @@ impl FixedSizeBlockAllocator {
     /// This function is unsafe because the caller must guarantee that the given
     /// heap bounds are valid and that the heap is unused. This method must be
     /// called only once.
-    pub unsafe fn init(&mut self, heap_start: usize, heap_size: usize) {
-        self.fallback_allocator.init(heap_start, heap_size);
+    pub unsafe fn init(&mut self, heap_start: u64, heap_size: u64) {
+        self.fallback_allocator
+            .init(heap_start as usize, heap_size as usize);
     }
 
     /// Allocates using the fallback allocator.
@@ -72,7 +76,7 @@ unsafe impl GlobalAlloc for Locked<FixedSizeBlockAllocator> {
                     let layout = Layout::from_size_align(block_size, block_align).unwrap();
                     allocator.fallback_alloc(layout)
                 }
-            }
+            },
             None => allocator.fallback_alloc(layout),
         }
     }

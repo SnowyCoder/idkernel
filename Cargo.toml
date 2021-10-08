@@ -57,6 +57,11 @@ features = ["alloc"]
 [package.metadata.bootloader]
 map-physical-memory = true
 
+boot-info-address      = "0xFFFF_9000_0000_0000"
+framebuffer-address    = "0xFFFF_9000_4000_0000"
+kernel-stack-address   = "0xFFFF_9000_8000_0000"
+physical-memory-offset = "0xFFFF_A000_0000_0000"
+
 [profile.dev]
 #panic = "abort"
 

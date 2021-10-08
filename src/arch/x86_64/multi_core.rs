@@ -1,39 +1,36 @@
-use acpi::platform::{ProcessorInfo, ProcessorState, Processor};
-use x86_64::{PhysAddr, VirtAddr};
-use x86_64::structures::paging::{FrameAllocator, Mapper, PageTableFlags, PhysFrame, Size4KiB};
-use core::intrinsics::{atomic_load, atomic_store};
-use core::sync::atomic::{AtomicBool, Ordering};
-use crate::arch::x86_64::paging::{get_frame_allocator, get_page_table, physical_memory_offset};
-use crate::arch::x86_64::apic::{LOCAL_APIC};
-use crate::{hlt_loop, print, println};
-use x86_64::registers::control::Cr3;
-
+use crate::{
+    allocator::{get_frame_allocator, HeapFrameAllocator},
+    arch::x86_64::{
+        apic::LOCAL_APIC,
+        paging::{get_page_table, physical_memory_offset},
+    },
+    hlt_loop, print, println,
+};
+use acpi::platform::{Processor, ProcessorInfo, ProcessorState};
+use alloc::{boxed::Box, vec};
+use core::{
+    intrinsics::{atomic_load, atomic_store},
+    sync::atomic::{AtomicBool, Ordering},
+};
+use x86_64::{
+    registers::control::Cr3,
+    structures::paging::{Mapper, PageTableFlags, PhysFrame, Size4KiB},
+    PhysAddr, VirtAddr,
+};
 
 const TRAMPOLINE_ADDR: u64 = 0x8000;
 static TRAMPOLINE_DATA: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/trampoline"));
 static AP_READY: AtomicBool = AtomicBool::new(false);
 static BSP_READY: AtomicBool = AtomicBool::new(false);
 
-
 pub fn init_ap_processor(p: &Processor) {
-    const STACK_FRAME_COUNT: u64 = 32;
-
     println!("Starting: AP {}", p.processor_uid);
 
-    let mut page_table = get_page_table();
-
-    let first_frame = {
-        let mut frame_allocator = get_frame_allocator();
-
-        let first_frame = frame_allocator.allocate_frame().expect("Unable to allocate frame");
-        let flags = PageTableFlags::PRESENT | PageTableFlags::WRITABLE;
-        unsafe { page_table.identity_map(first_frame, flags, &mut *frame_allocator).unwrap().flush(); }
-        for _ in 1..STACK_FRAME_COUNT {
-            let frame = frame_allocator.allocate_frame().expect("Unable to allocate frame");
-            unsafe { page_table.identity_map(frame, flags, &mut *frame_allocator).unwrap().flush(); }
-        }
-        first_frame
-    };
+    // TODO: put a non-empty page after the stack to catch stack overflows
+    const STACK_SIZE: u64 = 128 * 1024;
+    type Stack = [u8; STACK_SIZE as usize];
+    let stack = Box::<Stack>::new_uninit();
+    let stack = Box::leak(stack);
 
     let (level_4_table_frame, _) = Cr3::read();
 
@@ -41,8 +38,8 @@ pub fn init_ap_processor(p: &Processor) {
         Trampoline::setup(
             p.local_apic_id as u64,
             level_4_table_frame.start_address().as_u64(),
-            first_frame.start_address().as_u64(),
-            first_frame.start_address().as_u64() + STACK_FRAME_COUNT * 4096,
+            stack.as_ptr() as u64,
+            stack.as_ptr() as u64 + STACK_SIZE,
         );
     }
     println!("| Setup done");
@@ -91,46 +88,57 @@ pub fn init_ap_processor(p: &Processor) {
     println!("AP {} READY!", p.processor_uid);
 }
 
-
 pub fn init(proc_info: &ProcessorInfo) {
-    println!("MULTI_CORE INIT!");
+    println!("Initializing multicore");
 
     println!("Writing trampoline...");
     let frame = {
+        let mut data = vec![0u8; TRAMPOLINE_DATA.len()];
         let mut frame_allocator = get_frame_allocator();
-        let x = frame_allocator.allocate_frame().expect("Error allocating backup frame");
-        Trampoline::write(x, &mut (*frame_allocator));
-        x
+        Trampoline::write(data.as_mut_slice(), &mut (*frame_allocator));
+        data
     };
 
-    proc_info.application_processors.iter()
+    proc_info
+        .application_processors
+        .iter()
         .filter(|p| p.state != ProcessorState::Disabled)
         .for_each(|p| init_ap_processor(p));
 
-
     println!("Unwriting trampoline...");
-    unsafe { Trampoline::unwrite(frame); }
-    println!("Trampoline unwritten.");
+    unsafe {
+        Trampoline::unwrite(frame.as_slice());
+    }
 }
-
 
 struct Trampoline;
 
 impl Trampoline {
-
-    fn write(frame: PhysFrame, frame_allocator: &mut impl FrameAllocator<Size4KiB>) {
-        let from  = VirtAddr::new(frame.start_address().as_u64() + physical_memory_offset().as_u64());
+    fn write(backup: &mut [u8], frame_allocator: &mut HeapFrameAllocator) {
+        println!("P 1");
+        let from = backup.as_ptr() as u64;
+        println!("P 2");
         let dest = VirtAddr::new(TRAMPOLINE_ADDR);
         assert!(TRAMPOLINE_DATA.len() < 4096);
 
         let mut page_table = get_page_table();
         unsafe {
-            page_table.identity_map(PhysFrame::<Size4KiB>::containing_address(PhysAddr::new(TRAMPOLINE_ADDR)), PageTableFlags::PRESENT | PageTableFlags::WRITABLE, frame_allocator).unwrap().flush();
+            page_table
+                .identity_map(
+                    PhysFrame::<Size4KiB>::containing_address(PhysAddr::new(TRAMPOLINE_ADDR)),
+                    PageTableFlags::PRESENT | PageTableFlags::WRITABLE,
+                    frame_allocator,
+                )
+                .unwrap()
+                .flush();
         }
 
         for i in 0..TRAMPOLINE_DATA.len() {
             unsafe {
-                atomic_store((from.as_u64() as *mut u8).add(i), (dest.as_u64() as *mut u8).add(i).read());
+                atomic_store(
+                    (from as *mut u8).add(i),
+                    (dest.as_u64() as *mut u8).add(i).read(),
+                );
                 atomic_store((dest.as_u64() as *mut u8).add(i), TRAMPOLINE_DATA[i]);
             }
         }
@@ -157,17 +165,17 @@ impl Trampoline {
         atomic_load(ap_ready) != 0
     }
 
-    unsafe fn unwrite(frame: PhysFrame) {
-        let from  = physical_memory_offset() + frame.start_address().as_u64();
+    unsafe fn unwrite(backup: &[u8]) {
+        let from = backup.as_ptr() as u64;
         let dest = VirtAddr::new(TRAMPOLINE_ADDR);
         for i in 0..TRAMPOLINE_DATA.len() {
-            atomic_store((dest.as_u64() as *mut u8).add(i), (from.as_u64() as *mut u8).add(i).read());
+            atomic_store(
+                (dest.as_u64() as *mut u8).add(i),
+                (from as *mut u8).add(i).read(),
+            );
         }
     }
-
 }
-
-
 
 #[repr(C)]
 pub struct KernelArgsAp {
@@ -177,7 +185,7 @@ pub struct KernelArgsAp {
     stack_end: u64,
 }
 
-pub unsafe extern fn kstart_ap(args_ptr: *const KernelArgsAp) -> ! {
+pub unsafe extern "C" fn kstart_ap(args_ptr: *const KernelArgsAp) -> ! {
     use crate::{gdt, interrupts};
 
     let args = &*args_ptr;

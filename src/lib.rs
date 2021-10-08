@@ -2,10 +2,13 @@
 #![feature(asm)]
 #![feature(abi_x86_interrupt)]
 #![feature(alloc_error_handler)]
+#![feature(allocator_api)]
 #![feature(const_mut_refs)]
 #![feature(core_intrinsics)]
 #![feature(custom_test_frameworks)]
+#![feature(new_uninit)]
 #![feature(thread_local)]
+#![feature(type_alias_impl_trait)]
 #![feature(generators)]
 #![feature(generator_trait)]
 #![cfg_attr(test, no_main)]
@@ -15,14 +18,15 @@
 extern crate alloc;
 
 #[cfg(test)]
-use bootloader::{BootInfo, entry_point};
+use bootloader::{entry_point, BootInfo};
 use core::panic::PanicInfo;
 
 pub mod allocator;
 pub mod arch;
 pub mod gdt;
-pub mod interrupts;
 pub mod geniter;
+pub mod interrupts;
+pub mod memory;
 pub mod serial;
 pub mod task;
 pub mod vga_framebuffer;
@@ -35,16 +39,12 @@ entry_point!(test_kernel_main);
 /// Entry point for `cargo test`
 #[cfg(test)]
 fn test_kernel_main(boot_info: &'static mut BootInfo) -> ! {
-    init(boot_info.physical_memory_offset.into_option().unwrap());
+    init();
     test_main();
     hlt_loop();
 }
 
-
-pub fn init(phys_mem_off: u64) {
-    unsafe {
-        arch::x86_64::paging::init_phys_mem_off(phys_mem_off);
-    }
+pub fn init() {
     gdt::init_prepaging();
     interrupts::init_idt();
     unsafe {
@@ -59,8 +59,8 @@ pub trait Testable {
 }
 
 impl<T> Testable for T
-    where
-        T: Fn(),
+where
+    T: Fn(),
 {
     fn run(&self) {
         serial_print!("{}...\t", core::any::type_name::<T>());
@@ -90,7 +90,6 @@ fn panic(info: &PanicInfo) -> ! {
     test_panic_handler(info)
 }
 
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u32)]
 pub enum QemuExitCode {
@@ -119,7 +118,9 @@ pub fn hlt_loop() -> ! {
 // ( why can't I get breakpoints to work :( )
 #[inline(always)]
 pub fn gdb_loop() {
-    unsafe { asm!("2:", "jmp 2b"); }
+    unsafe {
+        asm!("2:", "jmp 2b");
+    }
 }
 
 #[alloc_error_handler]

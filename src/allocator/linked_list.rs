@@ -1,8 +1,8 @@
 use core::{mem, ptr};
 
 use super::align_up;
-use core::alloc::{GlobalAlloc, Layout};
 use crate::allocator::Locked;
+use core::alloc::{GlobalAlloc, Layout};
 
 struct ListNode {
     size: usize,

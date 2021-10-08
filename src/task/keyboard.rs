@@ -1,13 +1,12 @@
-
-use conquer_once::spin::OnceCell;
-use crossbeam_queue::ArrayQueue;
-use futures_util::stream::Stream;
-use core::pin::Pin;
-use core::task::{Context, Poll};
-use futures_util::task::AtomicWaker;
-use pc_keyboard::{ScancodeSet1, Keyboard, layouts, HandleControl, DecodedKey};
-use futures_util::StreamExt;
 use crate::{print, println};
+use conquer_once::spin::OnceCell;
+use core::{
+    pin::Pin,
+    task::{Context, Poll},
+};
+use crossbeam_queue::ArrayQueue;
+use futures_util::{stream::Stream, task::AtomicWaker, StreamExt};
+use pc_keyboard::{layouts, DecodedKey, HandleControl, Keyboard, ScancodeSet1};
 
 static SCANCODE_QUEUE: OnceCell<ArrayQueue<u8>> = OnceCell::uninit();
 static WAKER: AtomicWaker = AtomicWaker::new();
@@ -27,14 +26,14 @@ pub(crate) fn add_scancode(scancode: u8) {
     }
 }
 
-
 pub struct ScancodeStream {
     _private: (),
 }
 
 impl ScancodeStream {
     pub fn new() -> Self {
-        SCANCODE_QUEUE.try_init_once(|| ArrayQueue::new(128))
+        SCANCODE_QUEUE
+            .try_init_once(|| ArrayQueue::new(128))
             .expect("ScancodeStream::new should only be called once");
         ScancodeStream { _private: () }
     }
@@ -56,7 +55,7 @@ impl Stream for ScancodeStream {
             Some(scancode) => {
                 WAKER.take();
                 Poll::Ready(Some(scancode))
-            },
+            }
             None => Poll::Pending,
         }
     }
