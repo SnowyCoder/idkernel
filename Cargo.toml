@@ -21,6 +21,7 @@ harness = false
 [dependencies]
 itertools = { version="0.10", default-features=false, features=["use_alloc"] }
 bootloader = "0.10"
+memoffset = { version="0.6", features=["unstable_const"]}
 volatile = "0.4"
 spin = "0.9"
 x86_64 = "0.14"

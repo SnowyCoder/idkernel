@@ -160,6 +160,7 @@ dependencies = [
  "itertools",
  "lazy_static",
  "linked_list_allocator",
+ "memoffset",
  "pc-keyboard",
  "pic8259",
  "raw-cpuid",
@@ -218,6 +219,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "51b9bbe6c47d51fc3e1a9b945965946b4c44142ab8792c50835a980d362c2710"
 dependencies = [
  "cfg-if",
+]
+
+[[package]]
+name = "memoffset"
+version = "0.6.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "59accc507f1338036a0477ef61afdae33cde60840f4dfe481319ce3ad116ddf9"
+dependencies = [
+ "autocfg",
 ]
 
 [[package]]

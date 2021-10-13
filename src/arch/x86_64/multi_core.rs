@@ -7,14 +7,14 @@ use crate::{
     hlt_loop, print, println,
 };
 use acpi::platform::{Processor, ProcessorInfo, ProcessorState};
-use alloc::{boxed::Box, vec};
+use alloc::boxed::Box;
 use core::{
     intrinsics::{atomic_load, atomic_store},
     sync::atomic::{AtomicBool, Ordering},
 };
 use x86_64::{
     registers::control::Cr3,
-    structures::paging::{Mapper, PageTableFlags, PhysFrame, Size4KiB},
+    structures::paging::{Mapper, Page, PageTableFlags, PhysFrame, Size4KiB},
     PhysAddr, VirtAddr,
 };
 
@@ -92,11 +92,9 @@ pub fn init(proc_info: &ProcessorInfo) {
     println!("Initializing multicore");
 
     println!("Writing trampoline...");
-    let frame = {
-        let mut data = vec![0u8; TRAMPOLINE_DATA.len()];
+    {
         let mut frame_allocator = get_frame_allocator();
-        Trampoline::write(data.as_mut_slice(), &mut (*frame_allocator));
-        data
+        unsafe { Trampoline::write(&mut (*frame_allocator)) };
     };
 
     proc_info
@@ -107,40 +105,29 @@ pub fn init(proc_info: &ProcessorInfo) {
 
     println!("Unwriting trampoline...");
     unsafe {
-        Trampoline::unwrite(frame.as_slice());
+        Trampoline::unwrite();
     }
 }
 
 struct Trampoline;
 
 impl Trampoline {
-    fn write(backup: &mut [u8], frame_allocator: &mut HeapFrameAllocator) {
-        println!("P 1");
-        let from = backup.as_ptr() as u64;
-        println!("P 2");
+    unsafe fn write(frame_allocator: &mut HeapFrameAllocator) {
         let dest = VirtAddr::new(TRAMPOLINE_ADDR);
         assert!(TRAMPOLINE_DATA.len() < 4096);
 
         let mut page_table = get_page_table();
-        unsafe {
-            page_table
-                .identity_map(
-                    PhysFrame::<Size4KiB>::containing_address(PhysAddr::new(TRAMPOLINE_ADDR)),
-                    PageTableFlags::PRESENT | PageTableFlags::WRITABLE,
-                    frame_allocator,
-                )
-                .unwrap()
-                .flush();
-        }
+        page_table
+            .identity_map(
+                PhysFrame::<Size4KiB>::containing_address(PhysAddr::new(TRAMPOLINE_ADDR)),
+                PageTableFlags::PRESENT | PageTableFlags::WRITABLE,
+                frame_allocator,
+            )
+            .unwrap()
+            .flush();
 
         for i in 0..TRAMPOLINE_DATA.len() {
-            unsafe {
-                atomic_store(
-                    (from as *mut u8).add(i),
-                    (dest.as_u64() as *mut u8).add(i).read(),
-                );
-                atomic_store((dest.as_u64() as *mut u8).add(i), TRAMPOLINE_DATA[i]);
-            }
+            atomic_store((dest.as_u64() as *mut u8).add(i), TRAMPOLINE_DATA[i]);
         }
     }
 
@@ -165,15 +152,14 @@ impl Trampoline {
         atomic_load(ap_ready) != 0
     }
 
-    unsafe fn unwrite(backup: &[u8]) {
-        let from = backup.as_ptr() as u64;
-        let dest = VirtAddr::new(TRAMPOLINE_ADDR);
-        for i in 0..TRAMPOLINE_DATA.len() {
-            atomic_store(
-                (dest.as_u64() as *mut u8).add(i),
-                (from as *mut u8).add(i).read(),
-            );
-        }
+    unsafe fn unwrite() {
+        let mut page_table = get_page_table();
+        let (_frame, flush) = page_table
+            .unmap(Page::<Size4KiB>::containing_address(VirtAddr::new(
+                TRAMPOLINE_ADDR,
+            )))
+            .unwrap();
+        flush.flush();
     }
 }
 

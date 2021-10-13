@@ -7,10 +7,18 @@
 #![feature(core_intrinsics)]
 #![feature(custom_test_frameworks)]
 #![feature(new_uninit)]
+#![feature(naked_functions)]
 #![feature(thread_local)]
 #![feature(type_alias_impl_trait)]
 #![feature(generators)]
 #![feature(generator_trait)]
+// offsetof features:
+#![feature(
+    const_ptr_offset_from,
+    const_maybe_uninit_as_ptr,
+    const_raw_ptr_deref,
+    const_refs_to_cell
+)]
 #![cfg_attr(test, no_main)]
 #![test_runner(crate::test_runner)]
 #![reexport_test_harness_main = "test_main"]
@@ -28,6 +36,7 @@ pub mod geniter;
 pub mod interrupts;
 pub mod memory;
 pub mod serial;
+pub mod syscalls;
 pub mod task;
 pub mod vga_framebuffer;
 

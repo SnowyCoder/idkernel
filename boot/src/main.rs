@@ -9,8 +9,9 @@ const RUN_ARGS: &[&str] = &[
     "--no-reboot",
     "--no-shutdown",
     "--enable-kvm",
-    "-smp", "cores=2",
     "-cpu", "host",
+    //"-smp", "cores=2",
+    //"-d", "int", // debug interrupts
     "-s", // Open a gdb server on port 1234
     //"-S",
 ];

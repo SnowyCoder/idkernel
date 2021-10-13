@@ -55,7 +55,10 @@ pub fn init_heap(regions: &MemoryRegions) {
             .allocate_frame()
             .ok_or(MapToError::FrameAllocationFailed)?;
 
-        let flags = PageTableFlags::PRESENT | PageTableFlags::WRITABLE;
+        let flags = PageTableFlags::PRESENT
+            | PageTableFlags::WRITABLE
+            | PageTableFlags::NO_EXECUTE
+            | PageTableFlags::GLOBAL;
         unsafe {
             mapper
                 .map_to(page, frame, flags, &mut *boot_frame_alloc)?

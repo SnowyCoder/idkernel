@@ -1,6 +1,9 @@
 use x86_64::{
-    structures::paging::{OffsetPageTable, PageTable},
-    PhysAddr, VirtAddr,
+    structures::paging::{
+        page_table::{PageTableEntry, PageTableLevel},
+        OffsetPageTable, PageTable, PageTableFlags,
+    },
+    VirtAddr,
 };
 
 mod debug;
@@ -53,51 +56,67 @@ unsafe fn active_level_4_table(physical_memory_offset: VirtAddr) -> &'static mut
     &mut *page_table_ptr // unsafe
 }
 
-/// Translates the given virtual address to the mapped physical address, or
-/// `None` if the address is not mapped.
+/// Cleans up unused mappings of the bootloader
 ///
-/// This function is unsafe because the caller must guarantee that the
-/// complete physical memory is mapped to virtual memory at the passed
-/// `physical_memory_offset`.
-pub unsafe fn translate_addr(addr: VirtAddr, physical_memory_offset: VirtAddr) -> Option<PhysAddr> {
-    translate_addr_inner(addr, physical_memory_offset)
-}
-
-/// Private function that is called by `translate_addr`.
+/// When the bootloader calls the kernel everything is mapped correctly
+/// in the higher half except some entries (the GDT and the switch function)
+/// this function will clear everything mapped on the lower half
 ///
-/// This function is safe to limit the scope of `unsafe` because Rust treats
-/// the whole body of unsafe functions as an unsafe block. This function must
-/// only be reachable through `unsafe fn` from outside of this module.
-fn translate_addr_inner(addr: VirtAddr, physical_memory_offset: VirtAddr) -> Option<PhysAddr> {
-    use x86_64::{registers::control::Cr3, structures::paging::page_table::FrameError};
+/// SAFETY: you should call this only when there's nothing useful mapped to
+/// the lower half of the virtual addresses of the current page table
+/// (so before userspace)
+pub unsafe fn fix_bootloader_pollution() {
+    let mut table = get_page_table();
 
-    // read the active level 4 frame from the CR3 register
-    let (level_4_table_frame, _) = Cr3::read();
+    unsafe fn clear_leaf(entry: &mut PageTableEntry, level: PageTableLevel) {
+        if !entry.flags().contains(PageTableFlags::PRESENT) {
+            return;
+        }
 
-    let table_indexes = [
-        addr.p4_index(),
-        addr.p3_index(),
-        addr.p2_index(),
-        addr.p1_index(),
-    ];
-    let mut frame = level_4_table_frame;
-
-    // traverse the multi-level page table
-    for &index in &table_indexes {
-        // convert the frame into a page table reference
-        let virt = physical_memory_offset + frame.start_address().as_u64();
-        let table_ptr: *const PageTable = virt.as_ptr();
-        let table = unsafe { &*table_ptr };
-
-        // read the page table entry and update `frame`
-        let entry = &table[index];
-        frame = match entry.frame() {
-            Ok(frame) => frame,
-            Err(FrameError::FrameNotPresent) => return None,
-            Err(FrameError::HugeFrame) => panic!("huge pages not supported"),
-        };
+        match (entry.flags().contains(PageTableFlags::GLOBAL), level.next_lower_level()) {
+            (false, Some(lower_level)) => {
+                let offset = physical_memory_offset();
+                let table = &mut *(offset + entry.addr().as_u64()).as_mut_ptr() as &mut PageTable;
+                for e in table.iter_mut() {
+                    clear_leaf(e, lower_level);
+                }
+            }
+            _ => entry.set_flags(entry.flags() - PageTableFlags::PRESENT),
+        }
     }
 
-    // calculate the physical address by adding the page offset
-    Some(frame.start_address() + u64::from(addr.page_offset()))
+    for x4 in table.level_4_table().iter_mut().take(512 / 2) {
+        clear_leaf(x4, PageTableLevel::Four);
+    }
+}
+
+/// Globalizes all of the kernelspace addresses
+///
+/// SAFETY: you should call this when no other processor uses this
+/// page_table and when there's nothing in userspace
+pub unsafe fn globalize_kernelspace() {
+    let mut table = get_page_table();
+
+    unsafe fn globalize_leaf(entry: &mut PageTableEntry, level: PageTableLevel) {
+        if !entry.flags().contains(PageTableFlags::PRESENT) {
+            return;
+        }
+        if !entry.flags().contains(PageTableFlags::GLOBAL) {
+            entry.set_flags(entry.flags() | PageTableFlags::GLOBAL);
+        }
+        if entry.flags().contains(PageTableFlags::HUGE_PAGE) {
+            return;
+        }
+        if let Some(lower_level) = level.next_lower_level() {
+            let offset = physical_memory_offset();
+            let table = &mut *(offset + entry.addr().as_u64()).as_mut_ptr() as &mut PageTable;
+            for e in table.iter_mut() {
+                globalize_leaf(e, lower_level);
+            }
+        }
+    }
+
+    for x4 in table.level_4_table().iter_mut().skip(512 / 2) {
+        globalize_leaf(x4, PageTableLevel::Four);
+    }
 }

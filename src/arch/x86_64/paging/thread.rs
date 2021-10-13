@@ -66,7 +66,10 @@ pub unsafe fn setup_thread_data(cpu: u64, frame_allocator: &mut HeapFrameAllocat
     allocate_map_range(
         start_addr,
         KERNEL_THREAD_STORAGE_SIZE,
-        PageTableFlags::PRESENT | PageTableFlags::WRITABLE,
+        PageTableFlags::PRESENT
+            | PageTableFlags::WRITABLE
+            | PageTableFlags::NO_EXECUTE
+            | PageTableFlags::GLOBAL,
         frame_allocator,
     );
 

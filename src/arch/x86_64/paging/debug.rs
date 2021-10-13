@@ -23,12 +23,13 @@ pub fn explore_page_ranges() -> impl Iterator<Item = (VirtAddr, VirtAddr, PageTa
                 .iter()
                 .enumerate()
             {
-                if !x3.flags().contains(PageTableFlags::PRESENT) {
+                let x3f = x3.flags() & x4.flags();
+                if !x3f.contains(PageTableFlags::PRESENT) {
                     continue;
                 }
                 let start3 = start4 + i3 * Size1GiB::SIZE as usize;
                 if x3.flags().contains(PageTableFlags::HUGE_PAGE) {
-                    yield (start3, start3 + Size1GiB::SIZE as usize, x3.flags());
+                    yield (start3, start3 + Size1GiB::SIZE as usize, x3f);
                     continue;
                 }
 
@@ -36,12 +37,13 @@ pub fn explore_page_ranges() -> impl Iterator<Item = (VirtAddr, VirtAddr, PageTa
                     .iter()
                     .enumerate()
                 {
-                    if !x2.flags().contains(PageTableFlags::PRESENT) {
+                    let x2f = x2.flags() & x3f;
+                    if !x2f.contains(PageTableFlags::PRESENT) {
                         continue;
                     }
                     let start2 = start3 + i2 * Size2MiB::SIZE as usize;
                     if x2.flags().contains(PageTableFlags::HUGE_PAGE) {
-                        yield (start2, start2 + Size2MiB::SIZE as usize, x2.flags());
+                        yield (start2, start2 + Size2MiB::SIZE as usize, x2f);
                         continue;
                     }
 
@@ -49,11 +51,12 @@ pub fn explore_page_ranges() -> impl Iterator<Item = (VirtAddr, VirtAddr, PageTa
                         .iter()
                         .enumerate()
                     {
-                        if !x1.flags().contains(PageTableFlags::PRESENT) {
+                        let x1f = x1.flags();
+                        if !x1f.contains(PageTableFlags::PRESENT) {
                             continue;
                         }
                         let start1 = start2 + i1 * Size4KiB::SIZE as usize;
-                        yield (start1, start1 + Size4KiB::SIZE as usize, x1.flags());
+                        yield (start1, start1 + Size4KiB::SIZE as usize, x1f);
                     }
                 }
             }

@@ -3,7 +3,7 @@ use pic8259::ChainedPics;
 use spin;
 use x86_64::structures::idt::{InterruptDescriptorTable, InterruptStackFrame, PageFaultErrorCode};
 
-use crate::{gdt, hlt_loop, println};
+use crate::{gdt, hlt_loop, print, println};
 
 pub const PIC_1_OFFSET: u8 = 32;
 pub const PIC_2_OFFSET: u8 = PIC_1_OFFSET + 8;
@@ -33,10 +33,12 @@ lazy_static! {
         let mut idt = InterruptDescriptorTable::new();
         idt.breakpoint.set_handler_fn(breakpoint_handler);
 
-        idt.page_fault.set_handler_fn(page_fault_handler);
         idt.general_protection_fault
             .set_handler_fn(general_protection_fault_handler);
         unsafe {
+            idt.page_fault
+                .set_handler_fn(page_fault_handler)
+                .set_stack_index(gdt::DOUBLE_FAULT_IST_INDEX);
             idt.double_fault
                 .set_handler_fn(double_fault_handler)
                 .set_stack_index(gdt::DOUBLE_FAULT_IST_INDEX);
@@ -90,7 +92,7 @@ extern "x86-interrupt" fn general_protection_fault_handler(
 }
 
 extern "x86-interrupt" fn timer_interrupt_handler(_stack_frame: InterruptStackFrame) {
-    //print!(".");
+    print!(".");
     unsafe {
         PICS.lock()
             .notify_end_of_interrupt(InterruptIndex::Timer.as_u8());

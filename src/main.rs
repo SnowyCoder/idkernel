@@ -15,9 +15,12 @@ use kerneltest::{
     allocator::get_frame_allocator,
     arch::{
         consts::check_boot_info,
-        paging::{self, explore_page_ranges, get_page_table},
+        paging::{
+            self, explore_page_ranges, fix_bootloader_pollution, get_page_table,
+            globalize_kernelspace,
+        },
     },
-    gdt, println,
+    gdt, println, syscalls,
     task::{
         executor::{Executor, Spawner},
         keyboard, Task,
@@ -37,9 +40,17 @@ fn kernel_main(boot_info: &'static mut BootInfo) -> ! {
     unsafe { paging::init_boot_frame_allocator(&boot_info.memory_regions) };
 
     init_vga_framebuffer(fb);
+    // Now we can write to screen
 
     println!("Setting up GDT");
     kerneltest::init();
+
+    unsafe {
+        // Remove bootloader-related mappings in the lower-half
+        fix_bootloader_pollution();
+        // Add global bits in the higher half (yep, no meltdown/spectre mitigations for now)
+        globalize_kernelspace();
+    }
     allocator::init_heap(&boot_info.memory_regions);
 
     {
@@ -50,6 +61,7 @@ fn kernel_main(boot_info: &'static mut BootInfo) -> ! {
             paging::setup_thread_data(0, &mut frame_allocator);
         }
     }
+    println!("Setting up GDT");
     gdt::init();
 
     #[cfg(test)]
@@ -61,11 +73,13 @@ fn kernel_main(boot_info: &'static mut BootInfo) -> ! {
     }
 
     kerneltest::arch::acpi::init(boot_info.rsdp_addr.into_option().expect("Cannot find rsdp"));
+    syscalls::setup_syscalls();
 
     let mut executor = Executor::new();
     let spawner = executor.spawner().clone();
     executor.spawn(Task::new(example_task(spawner)));
-    executor.spawn(Task::new(print_tables()));
+    //executor.spawn(Task::new(print_tables()));
+    executor.spawn(Task::new(tuserspace()));
     //executor.spawn(Task::new(keyboard::print_keypresses()));
     executor.run_sync()
 }
@@ -93,6 +107,16 @@ async fn print_tables() {
             translate(from),
             flags
         );
+    }
+}
+
+async fn tuserspace() {
+    unsafe {
+        println!("Preparing userspace!");
+        let addr = syscalls::test_prepare_userspace();
+        print_tables().await;
+        println!("Entering userspace!");
+        syscalls::enter_userspace(addr);
     }
 }
 
