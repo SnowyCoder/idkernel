@@ -1,4 +1,4 @@
-use core::{mem::MaybeUninit, ptr};
+use core::mem::MaybeUninit;
 
 use alloc::boxed::Box;
 use memoffset::offset_of;
@@ -8,12 +8,12 @@ use x86_64::{
         rflags::RFlags,
     },
     structures::paging::{
-        FrameAllocator, Mapper, Page, PageTableFlags, PhysFrame, Size4KiB, Translate,
+        Mapper, Page, PageTableFlags, PhysFrame, Size4KiB, Translate,
     },
     VirtAddr,
 };
 
-use crate::{allocator::get_frame_allocator, arch::paging::get_page_table, println};
+use crate::{allocator::get_frame_allocator, arch::paging::get_page_table, context, println};
 
 mod asm;
 
@@ -80,6 +80,7 @@ pub unsafe fn enter_userspace(ip: VirtAddr) -> ! {
     let rflags = RFlags::INTERRUPT_FLAG.bits();
 
     asm!(
+        //"2: jmp 2b",
         "mov fs:[{tcd}@tpoff+{ksp_offset}+8], rsp",// save stack pointer
         "mov rsp, fs:[{tcd}@tpoff+{sp_offset}+8]",// load user stack pointer
         "swapgs",
@@ -95,7 +96,6 @@ pub unsafe fn enter_userspace(ip: VirtAddr) -> ! {
 
 pub unsafe fn test_prepare_userspace() -> VirtAddr {
     const USERSPACE_STACK_ADDR: u64 = 0x4000_0000;
-    const USERSPACE_CODE_ADDR: u64 = 0x5000_0000;
 
     const STACK_SIZE: usize = 4096;
     type UserStack = [u8; STACK_SIZE];
@@ -118,52 +118,11 @@ pub unsafe fn test_prepare_userspace() -> VirtAddr {
         )
         .unwrap()
         .flush();
+    drop(frame_allocator);
 
-    // Map func
-    let func_phys1 = frame_allocator.allocate_frame().unwrap();
-    let src_func_page = Page::containing_address(VirtAddr::new(USERSPACE_CODE_ADDR));
-    page_table
-        .map_to(
-            src_func_page,
-            func_phys1,
-            PageTableFlags::PRESENT | PageTableFlags::WRITABLE | PageTableFlags::USER_ACCESSIBLE,
-            &mut *frame_allocator,
-        )
-        .unwrap()
-        .flush();
-    let func_phys2 = frame_allocator.allocate_frame().unwrap();
-    page_table
-        .map_to(
-            src_func_page + 1,
-            func_phys2,
-            PageTableFlags::PRESENT | PageTableFlags::WRITABLE | PageTableFlags::USER_ACCESSIBLE,
-            &mut *frame_allocator,
-        )
-        .unwrap()
-        .flush();
-
-    let func_addr = VirtAddr::new(test_userspace as *const u8 as u64);
-    ptr::copy_nonoverlapping::<u8>(func_addr.as_ptr(), USERSPACE_CODE_ADDR as *mut u8, 4096 * 2);
+    let elf = context::init::mount(&mut page_table);
 
     TCD.user_stack_pointer = USERSPACE_STACK_ADDR + STACK_SIZE as u64 - 128;
 
-    VirtAddr::new(USERSPACE_CODE_ADDR)
-}
-
-#[no_mangle]
-#[naked]
-unsafe extern "C" fn test_userspace() {
-    asm! {
-        "push rax",
-        "mov rax, 1",
-        "mov rdi, 2",
-        "mov rsi, 3",
-        "mov rdx, 4",
-        "mov r10, 5",
-        "mov r8, 6",
-        "mov r9, 7",
-        "syscall",
-        "2: jmp 2b",
-        options(noreturn)
-    }
+    VirtAddr::new(elf.header().e_entry)
 }

@@ -10,23 +10,16 @@ use core::panic::PanicInfo;
 
 use bootloader::{entry_point, BootInfo};
 
-use kerneltest::{
-    allocator,
-    allocator::get_frame_allocator,
-    arch::{
+use kerneltest::{allocator, allocator::get_frame_allocator, arch::{
         consts::check_boot_info,
         paging::{
             self, explore_page_ranges, fix_bootloader_pollution, get_page_table,
             globalize_kernelspace,
         },
-    },
-    gdt, println, syscalls,
-    task::{
+    }, gdt, println, syscalls, task::{
         executor::{Executor, Spawner},
         keyboard, Task,
-    },
-    vga_framebuffer::init_vga_framebuffer,
-};
+    }, utils::shortflags::ShortFlags, vga_framebuffer::init_vga_framebuffer};
 use x86_64::structures::paging::Translate;
 
 entry_point!(kernel_main);
@@ -101,11 +94,11 @@ async fn print_tables() {
 
     for (from, to, flags) in explore_page_ranges() {
         println!(
-            "{:#018x}-{:#018x} -> {:#012x} {:?}",
+            "{:#018x}-{:#018x} -> {:#012x} {}",
             from,
             to,
             translate(from),
-            flags
+            ShortFlags(flags)
         );
     }
 }

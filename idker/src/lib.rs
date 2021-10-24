@@ -31,8 +31,9 @@ use core::panic::PanicInfo;
 
 pub mod allocator;
 pub mod arch;
+pub mod context;
 pub mod gdt;
-pub mod geniter;
+pub mod utils;
 pub mod interrupts;
 pub mod memory;
 pub mod serial;
@@ -40,7 +41,7 @@ pub mod syscalls;
 pub mod task;
 pub mod vga_framebuffer;
 
-pub use geniter::GenIter;
+pub use utils::geniter::GenIter;
 
 #[cfg(test)]
 entry_point!(test_kernel_main);
