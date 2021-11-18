@@ -16,10 +16,7 @@ use kerneltest::{allocator, allocator::get_frame_allocator, arch::{
             self, explore_page_ranges, fix_bootloader_pollution, get_page_table,
             globalize_kernelspace,
         },
-    }, gdt, println, syscalls, task::{
-        executor::{Executor, Spawner},
-        keyboard, Task,
-    }, utils::shortflags::ShortFlags, vga_framebuffer::init_vga_framebuffer};
+    }, context::{TaskContext, switch::switch_task}, gdb_loop, gdt, println, syscalls, utils::shortflags::ShortFlags, vga_framebuffer::init_vga_framebuffer};
 use x86_64::structures::paging::Translate;
 
 entry_point!(kernel_main);
@@ -68,15 +65,16 @@ fn kernel_main(boot_info: &'static mut BootInfo) -> ! {
     kerneltest::arch::acpi::init(boot_info.rsdp_addr.into_option().expect("Cannot find rsdp"));
     syscalls::setup_syscalls();
 
-    let mut executor = Executor::new();
+    /*let mut executor = Executor::new();
     let spawner = executor.spawner().clone();
     executor.spawn(Task::new(example_task(spawner)));
     //executor.spawn(Task::new(print_tables()));
     executor.spawn(Task::new(tuserspace()));
-    //executor.spawn(Task::new(keyboard::print_keypresses()));
-    executor.run_sync()
+    executor.run_sync()*/
+    tuserspace();
+    loop {}
 }
-
+/*
 async fn async_number() -> u32 {
     42
 }
@@ -85,9 +83,9 @@ async fn example_task(spawner: Spawner) {
     let num = async_number().await;
     println!("async number: {}", num);
     spawner.spawn(keyboard::print_keypresses());
-}
+}*/
 
-async fn print_tables() {
+fn print_tables() {
     let table = get_page_table();
 
     let translate = |from| (&table).translate_addr(from).unwrap().as_u64();
@@ -103,13 +101,17 @@ async fn print_tables() {
     }
 }
 
-async fn tuserspace() {
+fn tuserspace() {
     unsafe {
+        //print_tables().await;
+        let init = TaskContext::create_init();
         println!("Preparing userspace!");
-        let addr = syscalls::test_prepare_userspace();
-        print_tables().await;
-        println!("Entering userspace!");
-        syscalls::enter_userspace(addr);
+        let mut ctx = syscalls::test_prepare_userspace();
+
+        //ctx.use_pagetable();
+        println!("Jumping tasks!");
+        gdb_loop();
+        switch_task(&init.arch_regs, &ctx.arch_regs);
     }
 }
 

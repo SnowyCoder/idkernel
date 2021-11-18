@@ -1,5 +1,5 @@
 #![no_std]
-#![feature(asm)]
+#![feature(asm, asm_const, asm_sym)]
 #![feature(abi_x86_interrupt)]
 #![feature(alloc_error_handler)]
 #![feature(allocator_api)]
@@ -16,7 +16,6 @@
 #![feature(
     const_ptr_offset_from,
     const_maybe_uninit_as_ptr,
-    const_raw_ptr_deref,
     const_refs_to_cell
 )]
 #![cfg_attr(test, no_main)]

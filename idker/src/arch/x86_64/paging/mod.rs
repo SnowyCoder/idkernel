@@ -34,6 +34,7 @@ pub unsafe fn init(physical_memory_offset: VirtAddr) -> OffsetPageTable<'static>
     OffsetPageTable::new(level_4_table, physical_memory_offset)
 }
 
+// TODO: use refcell?
 pub fn get_page_table() -> OffsetPageTable<'static> {
     return unsafe { init(physical_memory_offset()) };
 }

@@ -17,7 +17,9 @@ harness = false
 
 
 [dependencies]
+include_dir = { path="../include_dir" }
 itertools = { version="0.10", default-features=false, features=["use_alloc"] }
+num_enum = { version="0.5", default-features=false }
 bootloader = "0.10"
 memoffset = { version="0.6", features=["unstable_const"]}
 volatile = "0.4"

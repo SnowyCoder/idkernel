@@ -29,7 +29,7 @@ macro_rules! impl_display {
 }
 
 impl_display!(PageTableFlags, {
-    "F" PRESENT;
+    "P" PRESENT;
     "W" WRITABLE;
     "UA" USER_ACCESSIBLE;
     "WT" WRITE_THROUGH;
@@ -40,23 +40,3 @@ impl_display!(PageTableFlags, {
     "G" GLOBAL;
     "NE" NO_EXECUTE;
 });
-
-/*impl fmt::Display for ShortFlags<PageTableFlags> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        use PageTableFlags as F;
-
-        write_all! {
-            "F" F::PRESENT;
-            "W" F::WRITABLE;
-            "UA" F::USER_ACCESSIBLE;
-            "WT" F::WRITE_THROUGH;
-            "NC" F::NO_CACHE;
-            "A" F::ACCESSED;
-            "D" F::DIRTY;
-            "H" F::HUGE_PAGE;
-            "G" F::GLOBAL;
-            "NE" F::NO_EXECUTE;
-        };
-        Ok(())
-    }
-}*/
