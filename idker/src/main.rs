@@ -13,11 +13,10 @@ use bootloader::{entry_point, BootInfo};
 use kerneltest::{allocator, allocator::get_frame_allocator, arch::{
         consts::check_boot_info,
         paging::{
-            self, explore_page_ranges, fix_bootloader_pollution, get_page_table,
+            self, fix_bootloader_pollution,
             globalize_kernelspace,
         },
-    }, context::{TaskContext, switch::switch_task}, gdb_loop, gdt, println, syscalls, utils::shortflags::ShortFlags, vga_framebuffer::init_vga_framebuffer};
-use x86_64::structures::paging::Translate;
+    }, context::{TaskContext, set_current_task_id, switch_to_next_task, tasks_mut}, gdt, println, syscalls::{self, start_initproc}, vga_framebuffer::init_vga_framebuffer};
 
 entry_point!(kernel_main);
 
@@ -65,53 +64,25 @@ fn kernel_main(boot_info: &'static mut BootInfo) -> ! {
     kerneltest::arch::acpi::init(boot_info.rsdp_addr.into_option().expect("Cannot find rsdp"));
     syscalls::setup_syscalls();
 
-    /*let mut executor = Executor::new();
-    let spawner = executor.spawner().clone();
-    executor.spawn(Task::new(example_task(spawner)));
-    //executor.spawn(Task::new(print_tables()));
-    executor.spawn(Task::new(tuserspace()));
-    executor.run_sync()*/
-    tuserspace();
-    loop {}
-}
-/*
-async fn async_number() -> u32 {
-    42
+    run_executor()
 }
 
-async fn example_task(spawner: Spawner) {
-    let num = async_number().await;
-    println!("async number: {}", num);
-    spawner.spawn(keyboard::print_keypresses());
-}*/
-
-fn print_tables() {
-    let table = get_page_table();
-
-    let translate = |from| (&table).translate_addr(from).unwrap().as_u64();
-
-    for (from, to, flags) in explore_page_ranges() {
-        println!(
-            "{:#018x}-{:#018x} -> {:#012x} {}",
-            from,
-            to,
-            translate(from),
-            ShortFlags(flags)
-        );
-    }
-}
-
-fn tuserspace() {
+fn run_executor() -> ! {
     unsafe {
-        //print_tables().await;
+        // Init task = main kernel task (with no user thread attached)
         let init = TaskContext::create_init();
-        println!("Preparing userspace!");
-        let mut ctx = syscalls::test_prepare_userspace();
+        let init_id = init.id;
+        tasks_mut().add(init);
+        set_current_task_id(init_id);
 
-        //ctx.use_pagetable();
-        println!("Jumping tasks!");
-        gdb_loop();
-        switch_task(&init.arch_regs, &ctx.arch_regs);
+        // initproc task = a normal task used to run the init process
+        let ctx = TaskContext::create(start_initproc);
+        tasks_mut().add(ctx);
+    }
+    loop {
+        if !switch_to_next_task() {
+            x86_64::instructions::interrupts::enable_and_hlt();
+        }
     }
 }
 

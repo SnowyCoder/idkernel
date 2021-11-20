@@ -1,8 +1,6 @@
 use core::mem;
 
-use crate::println;
-
-use super::{TaskContext, UserPageTable};
+use super::{UserPageTable, after_task_switch};
 
 use memoffset::offset_of;
 
@@ -40,7 +38,6 @@ impl ContextRegs {
     pub fn reload_cr3(&mut self, page_table: &mut UserPageTable) {
         let frame = page_table.get_frame();
         self.cr3 = frame.start_address().as_u64() as usize;
-        println!("CR3: {}", self.cr3);
     }
 
     pub unsafe fn push_stack(&mut self, val: usize) {
@@ -98,7 +95,9 @@ pub unsafe extern "C" fn switch_task(_from: &ContextRegs, _to: &ContextRegs) {
         // pop into RFLAGS
         "popfq",
 
-        "ret",                              // Get the new rip from stack and return
+        // Call the after switch hook, it will manage the locks
+        // and after that do a ret, getting the new rip from the stack and jumping to it
+        "jmp {after_task_switch}",
 
         offset_cr3 = const(offset_of!(ContextRegs, cr3)),
         offset_rbx = const(offset_of!(ContextRegs, rbx)),
@@ -109,6 +108,7 @@ pub unsafe extern "C" fn switch_task(_from: &ContextRegs, _to: &ContextRegs) {
         offset_r15 = const(offset_of!(ContextRegs, r15)),
         offset_rsp = const(offset_of!(ContextRegs, rsp)),
         offset_rflags = const(offset_of!(ContextRegs, rflags)),
+        after_task_switch = sym after_task_switch,
 
         options(noreturn)
     }

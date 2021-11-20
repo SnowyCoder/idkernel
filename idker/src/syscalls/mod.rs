@@ -9,19 +9,18 @@ use x86_64::{
 };
 use num_enum::TryFromPrimitive;
 
-use crate::println;
+use crate::{context::{current_task, switch_to_next_task, task::TaskState}, println};
 
 mod asm;
 mod userspace;
 
-pub use userspace::{enter_userspace, test_prepare_userspace};
+pub use userspace::{enter_userspace, start_initproc};
 
 #[derive(Clone, Copy, TryFromPrimitive, Debug, PartialEq, Eq)]
 #[repr(u64)]
 pub enum SyscallCode {
     EXIT = 0,
-    YIELD,// ??
-    KPRINT,
+    YIELD,
 }
 
 pub struct ThreadControlData {
@@ -58,11 +57,18 @@ extern "C" fn on_symcall_1(a: u64, b: u64, c: u64, sel: u64, e: u64, f: u64, d: 
 
     match sysnum {
         SyscallCode::EXIT => {
-            // We need to leave this thread
+            {
+                let lock = current_task();
+                let mut task = lock.write();
+                task.state = TaskState::Dying;
+            }
+            switch_to_next_task();
         },
-        SyscallCode::YIELD => todo!(),
-        SyscallCode::KPRINT => todo!(),
+        SyscallCode::YIELD => {
+            switch_to_next_task();
+        }
     }
+    println!("Returning from syscall")
 }
 
 macro_rules! concat_newl {

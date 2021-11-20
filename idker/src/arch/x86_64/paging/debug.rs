@@ -1,10 +1,7 @@
 use itertools::Itertools;
-use x86_64::{
-    structures::paging::{PageSize, PageTable, PageTableFlags, Size1GiB, Size2MiB, Size4KiB},
-    VirtAddr,
-};
+use x86_64::{VirtAddr, structures::paging::{PageSize, PageTable, PageTableFlags, Size1GiB, Size2MiB, Size4KiB, Translate}};
 
-use crate::GenIter;
+use crate::{GenIter, println, utils::shortflags::ShortFlags};
 
 use super::{get_page_table, physical_memory_offset};
 
@@ -73,4 +70,21 @@ pub fn explore_page_ranges() -> impl Iterator<Item = (VirtAddr, VirtAddr, PageTa
                 Err(((afrom, ato, aflags), (bfrom, bto, bflags)))
             }
         })
+}
+
+
+pub fn print_tables() {
+    let table = get_page_table();
+
+    let translate = |from| (&table).translate_addr(from).unwrap().as_u64();
+
+    for (from, to, flags) in explore_page_ranges() {
+        println!(
+            "{:#018x}-{:#018x} -> {:#012x} {}",
+            from,
+            to,
+            translate(from),
+            ShortFlags(flags)
+        );
+    }
 }

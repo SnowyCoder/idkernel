@@ -3,7 +3,7 @@ use core::{cmp::{max, min}, convert::TryInto, intrinsics::copy_nonoverlapping, s
 use goblin::{elf64::{header::{ELFMAG, SELFMAG, Header, SIZEOF_EHDR}, program_header::{PF_R, PF_W, PF_X, PT_LOAD, ProgramHeader}}};
 
 use x86_64::{VirtAddr, structures::paging::{OffsetPageTable, FrameAllocator, Mapper, Page, PageSize, PageTableFlags, Size4KiB}};
-use crate::{allocator::get_frame_allocator, arch::paging::physical_memory_offset, println, utils::shortflags::ShortFlags};
+use crate::{allocator::get_frame_allocator, arch::paging::physical_memory_offset};
 
 
 
@@ -75,8 +75,6 @@ impl<'a> Elf<'a> {
             if header.p_flags & PF_R == 0 { panic!("Program section not readable?") }
             let flags = flags;// not mutable anymore
 
-            println!("Copying {:#018x}-{:#018x} {}", from, to, ShortFlags(flags));
-
             // index into the data array
             let file_index = from_page.start_address().as_u64() as isize - from.as_u64() as isize;
             for page in range {
@@ -95,7 +93,6 @@ impl<'a> Elf<'a> {
 
                     // offset to the page,
                     let off = max(-file_index, 0);
-                    println!("  {} {}", data_start, data_end);
                     if data_start <= data_end {
                         copy_nonoverlapping(
                             data.as_ptr().offset(data_start),

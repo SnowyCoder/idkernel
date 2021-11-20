@@ -60,7 +60,6 @@ impl FixedSizeBlockAllocator {
 
 unsafe impl GlobalAlloc for Locked<FixedSizeBlockAllocator> {
     unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
-        //println!("ALLOC!: {:?}", layout);
         let mut allocator = self.lock();
         match list_index(&layout) {
             Some(index) => match allocator.list_heads[index].take() {
@@ -82,7 +81,6 @@ unsafe impl GlobalAlloc for Locked<FixedSizeBlockAllocator> {
     }
 
     unsafe fn dealloc(&self, ptr: *mut u8, layout: Layout) {
-        //println!("DEALLOC!: {:?}", layout);
         let mut allocator = self.lock();
         match list_index(&layout) {
             Some(index) => {

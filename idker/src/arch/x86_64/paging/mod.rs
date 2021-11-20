@@ -10,7 +10,7 @@ mod debug;
 mod frame_allocator;
 mod thread;
 
-pub use debug::explore_page_ranges;
+pub use debug::{explore_page_ranges, print_tables};
 pub use frame_allocator::{
     get_boot_frame_allocator, init_boot_frame_allocator, BootInfoFrameAllocator,
 };
