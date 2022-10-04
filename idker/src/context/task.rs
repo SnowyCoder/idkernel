@@ -1,16 +1,16 @@
 use core::{num::NonZeroU64, sync::atomic::{AtomicU64, Ordering}};
 
-use alloc::boxed::Box;
+use alloc::{boxed::Box, vec::Vec};
 use x86_64::{VirtAddr, structures::paging::{Mapper, Page, PageTableFlags, Size4KiB}};
 
-use crate::{allocator::get_frame_allocator, arch::paging::get_page_table, syscalls::TCD};
+use crate::{allocator::get_frame_allocator, arch::paging::get_page_table, capability::syscall::TaskCapabilityStorage, file::syscall::TaskFileStorage, syscalls::TCD};
 
 use super::{UserPageTable, elf::Elf, switch::ContextRegs};
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug, Hash)]
 pub struct TaskId(pub NonZeroU64);
 
-const KERNEL_STACK_SIZE: usize = 64 * 1024;// 64Kb
+const KERNEL_STACK_SIZE: usize = 16 * 1024;// 64Kb
 const USER_STACK_SIZE: usize = 64 * 1024;// 64Kb
 const USERSPACE_STACK_ADDR: u64 = 0x4000_0000;
 static NEXT_PID: AtomicU64 = AtomicU64::new(2);
@@ -48,8 +48,12 @@ pub enum TaskState {
 
 pub struct TaskContext {
     pub id: TaskId,
+    pub parent: Option<TaskId>,
+    pub children: Vec<TaskId>,
     pub state: TaskState,
     pub arch_regs: ContextRegs,
+    pub capabilities: TaskCapabilityStorage,
+    pub files: TaskFileStorage,
     pub page_table: UserPageTable,
     pub kernel_stack: Option<OwnedStack<KERNEL_STACK_SIZE>>,
     pub user_stack: Option<OwnedStack<USER_STACK_SIZE>>,
@@ -60,14 +64,19 @@ pub struct TaskContext {
 
 impl TaskContext {
     pub unsafe fn create_init() -> Self {
+        let id = TaskId(NonZeroU64::new(1).unwrap());
         let mut ctx = TaskContext {
-            id: TaskId(NonZeroU64::new(1).unwrap()),
+            id,
+            parent: None,
+            children: Vec::new(),
             state: TaskState::Sleepy,
             arch_regs: ContextRegs::default(),
             page_table: UserPageTable::from_current(),
             kernel_stack: None,
             user_stack: None,
             user_entry_point: VirtAddr::zero(),
+            capabilities: Default::default(),
+            files: TaskFileStorage::new(id),
         };
 
         ctx.arch_regs.reload_cr3(&mut ctx.page_table);
@@ -75,16 +84,21 @@ impl TaskContext {
         ctx
     }
 
-    pub fn create(func: extern fn()) -> Self {
+    pub fn create(parent: TaskId, func: extern fn()) -> Self {
         let mut ktable = get_page_table();
+        let id = allocate_pid();
         let mut ctx = TaskContext {
-            id: allocate_pid(),
+            id,
+            parent: Some(parent),
+            children: Vec::new(),
             state: TaskState::User,
             arch_regs: ContextRegs::default(),
             page_table: UserPageTable::new_from(ktable.level_4_table()),
             kernel_stack: Some(OwnedStack::alloc_uninit()),
             user_stack: Some(OwnedStack::alloc_uninit()),
             user_entry_point: VirtAddr::zero(),
+            capabilities: Default::default(),
+            files: TaskFileStorage::new(id),
         };
 
         ctx.arch_regs.reload_cr3(&mut ctx.page_table);
@@ -142,7 +156,7 @@ impl TaskContext {
         TCD.user_stack_pointer = USERSPACE_STACK_ADDR + USER_STACK_SIZE as u64 - 128;
     }
 
-    pub fn load_elf(&mut self, elf: &Elf<'static>) {
+    pub fn load_elf(&mut self, elf: &Elf) {
         elf.mount_into(&mut self.page_table.offset_page());
         self.user_entry_point = VirtAddr::new(elf.header().e_entry);
     }

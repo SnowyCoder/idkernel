@@ -8,11 +8,11 @@ use std::{
 const RUN_ARGS: &[&str] = &[
     "--no-reboot",
     "--no-shutdown",
-    //"--enable-kvm",
-    //"-cpu", "host",
+    "--enable-kvm",
+    "-cpu", "host",
     //"-smp", "cores=2",
     //"-d", "int", // debug interrupts
-    "-s", // Open a gdb server on port 1234
+    //"-s", // Open a gdb server on port 1234
     //"-S",
 ];
 

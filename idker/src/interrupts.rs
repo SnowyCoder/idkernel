@@ -35,6 +35,8 @@ lazy_static! {
 
         idt.general_protection_fault
             .set_handler_fn(general_protection_fault_handler);
+        idt.segment_not_present
+            .set_handler_fn(segment_not_present_handler);
         unsafe {
             idt.page_fault
                 .set_handler_fn(page_fault_handler)
@@ -86,6 +88,17 @@ extern "x86-interrupt" fn general_protection_fault_handler(
 ) -> () {
     println!(
         "EXCEPTION: GENERAL PROTECTION FAULT\n{:#?}\nError code: {:?}",
+        stack_frame, error_code
+    );
+    hlt_loop();
+}
+
+extern "x86-interrupt" fn segment_not_present_handler(
+    stack_frame: InterruptStackFrame,
+    error_code: u64,
+) -> () {
+    println!(
+        "EXCEPTION: SEGMENT NOT PRESENT\n{:#?}\nError code: {:?}",
         stack_frame, error_code
     );
     hlt_loop();

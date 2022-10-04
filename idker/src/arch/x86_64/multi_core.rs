@@ -9,7 +9,7 @@ use crate::{
 use acpi::platform::{Processor, ProcessorInfo, ProcessorState};
 use alloc::boxed::Box;
 use core::{
-    intrinsics::{atomic_load, atomic_store},
+    intrinsics::{atomic_load_seqcst, atomic_store_seqcst},
     sync::atomic::{AtomicBool, Ordering},
 };
 use x86_64::{
@@ -127,7 +127,7 @@ impl Trampoline {
             .flush();
 
         for i in 0..TRAMPOLINE_DATA.len() {
-            atomic_store((dest.as_u64() as *mut u8).add(i), TRAMPOLINE_DATA[i]);
+            atomic_store_seqcst((dest.as_u64() as *mut u8).add(i), TRAMPOLINE_DATA[i]);
         }
     }
 
@@ -139,17 +139,17 @@ impl Trampoline {
         let ap_stack_end = ap_ready.offset(4);
         let ap_code = ap_ready.offset(5);
 
-        atomic_store(ap_ready, 0);
-        atomic_store(ap_cpu_id, cpu_id);
-        atomic_store(ap_page_table, page_table);
-        atomic_store(ap_stack_start, stack_start);
-        atomic_store(ap_stack_end, stack_end);
-        atomic_store(ap_code, kstart_ap as u64);
+        atomic_store_seqcst(ap_ready, 0);
+        atomic_store_seqcst(ap_cpu_id, cpu_id);
+        atomic_store_seqcst(ap_page_table, page_table);
+        atomic_store_seqcst(ap_stack_start, stack_start);
+        atomic_store_seqcst(ap_stack_end, stack_end);
+        atomic_store_seqcst(ap_code, kstart_ap as u64);
     }
 
     unsafe fn is_ready() -> bool {
         let ap_ready = (TRAMPOLINE_ADDR + 8 + physical_memory_offset().as_u64()) as *mut u64;
-        atomic_load(ap_ready) != 0
+        atomic_load_seqcst(ap_ready) != 0
     }
 
     unsafe fn unwrite() {

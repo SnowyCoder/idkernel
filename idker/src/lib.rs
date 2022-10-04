@@ -1,5 +1,5 @@
 #![no_std]
-#![feature(asm, asm_const, asm_sym)]
+#![feature(asm_const, asm_sym)]
 #![feature(abi_x86_interrupt)]
 #![feature(alloc_error_handler)]
 #![feature(allocator_api)]
@@ -12,12 +12,6 @@
 #![feature(type_alias_impl_trait)]
 #![feature(generators)]
 #![feature(generator_trait)]
-// offsetof features:
-#![feature(
-    const_ptr_offset_from,
-    const_maybe_uninit_as_ptr,
-    const_refs_to_cell
-)]
 #![cfg_attr(test, no_main)]
 #![test_runner(crate::test_runner)]
 #![reexport_test_harness_main = "test_main"]
@@ -31,11 +25,13 @@ use core::panic::PanicInfo;
 pub mod allocator;
 pub mod arch;
 pub mod context;
+pub mod file;
 pub mod gdt;
 pub mod utils;
 pub mod interrupts;
 pub mod memory;
 pub mod serial;
+pub mod capability;
 pub mod syscalls;
 pub mod task;
 pub mod vga_framebuffer;
@@ -128,7 +124,7 @@ pub fn hlt_loop() -> ! {
 #[inline(always)]
 pub fn gdb_loop() {
     unsafe {
-        asm!("2:", "jmp 2b");
+        core::arch::asm!("2:", "jmp 2b");
     }
 }
 

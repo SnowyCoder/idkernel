@@ -1,15 +1,23 @@
 use x86_64::{VirtAddr, registers::rflags::RFlags};
 use memoffset::offset_of;
 
-use crate::{context::{current_task, elf::Elf, init::INIT_DIR}, syscalls::{TCD, ThreadControlData}};
+use crate::{context::{current_task, elf::Elf, init::INIT_DIR}, syscalls::{TCD, ThreadControlData}, gdb_loop};
 
+use super::{SyscallError, SyscallResult};
+
+pub fn check_addr_userspace(addr: usize) -> SyscallResult<()> {
+    return match addr as usize & 1 << (u64::BITS - 1) {
+        0 => Ok(()),
+        _ => Err(SyscallError::WrongParameters),
+    }
+}
 
 
 pub unsafe fn enter_userspace(ip: VirtAddr) -> ! {
     let ip = ip.as_u64();
     let rflags = RFlags::INTERRUPT_FLAG.bits();
 
-    asm!(
+    core::arch::asm!(
         "mov fs:[{tcd}@tpoff+{ksp_offset}+8], rsp",// save stack pointer
         "mov rsp, fs:[{tcd}@tpoff+{sp_offset}+8]",// load user stack pointer
         "swapgs",
@@ -37,6 +45,5 @@ pub extern "C" fn start_initproc() {
         ctx.user_entry_point
     };
     //print_tables();
-
     unsafe { enter_userspace(entry_point) };
 }

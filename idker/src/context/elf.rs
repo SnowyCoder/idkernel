@@ -3,7 +3,7 @@ use core::{cmp::{max, min}, convert::TryInto, intrinsics::copy_nonoverlapping, s
 use goblin::{elf64::{header::{ELFMAG, SELFMAG, Header, SIZEOF_EHDR}, program_header::{PF_R, PF_W, PF_X, PT_LOAD, ProgramHeader}}};
 
 use x86_64::{VirtAddr, structures::paging::{OffsetPageTable, FrameAllocator, Mapper, Page, PageSize, PageTableFlags, Size4KiB}};
-use crate::{allocator::get_frame_allocator, arch::paging::physical_memory_offset};
+use crate::{allocator::get_frame_allocator, arch::paging::physical_memory_offset, syscalls::check_addr_userspace};
 
 
 
@@ -63,8 +63,8 @@ impl<'a> Elf<'a> {
         for (header, data) in headers {
             let from = VirtAddr::new(header.p_vaddr);
             let to = from + header.p_memsz;
-            check_addr_userspace(from).unwrap();
-            check_addr_userspace(to).unwrap();
+            check_addr_userspace(from.as_u64() as usize).unwrap();
+            check_addr_userspace(to.as_u64() as usize).unwrap();
             let from_page = Page::containing_address(from);
             let to_page = Page::containing_address(to - 1usize);
             let range = Page::<Size4KiB>::range_inclusive(from_page, to_page);
@@ -103,12 +103,5 @@ impl<'a> Elf<'a> {
                 }
             }
         }
-    }
-}
-
-fn check_addr_userspace(addr: VirtAddr) -> Result<(), &'static str> {
-    return match addr.as_u64() & 1 << (u64::BITS - 1) {
-        0 => Ok(()),
-        _ => Err("Address is in kernel space"),
     }
 }

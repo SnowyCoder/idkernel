@@ -4,6 +4,7 @@ pub mod init;
 pub mod page_table;
 pub mod registry;
 pub mod switch;
+pub mod syscall;
 
 use core::{cell::Cell, num::NonZeroU64, sync::atomic::{AtomicU64, Ordering}};
 

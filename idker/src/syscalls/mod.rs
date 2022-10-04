@@ -7,20 +7,33 @@ use x86_64::{
     },
     VirtAddr,
 };
-use num_enum::TryFromPrimitive;
 
-use crate::{context::{current_task, switch_to_next_task, task::TaskState}, println};
+use crate::{context::{current_task, switch_to_next_task, task::TaskState}, file::{FileHandleError, PathOpenError}, println};
+use super::capability::syscall as cap_call;
+use super::context::syscall as proc_call;
+use super::file::syscall as file_call;
+use syscall::{SyscallCode, SyscallError, SyscallResult};
 
 mod asm;
+mod memory;
 mod userspace;
 
-pub use userspace::{enter_userspace, start_initproc};
+pub use userspace::{enter_userspace, start_initproc, check_addr_userspace};
 
-#[derive(Clone, Copy, TryFromPrimitive, Debug, PartialEq, Eq)]
-#[repr(u64)]
-pub enum SyscallCode {
-    EXIT = 0,
-    YIELD,
+
+impl From<PathOpenError> for SyscallError {
+    fn from(_: PathOpenError) -> SyscallError {
+        SyscallError::InvalidPath
+    }
+}
+
+impl From<FileHandleError> for SyscallError {
+    fn from(x: FileHandleError) -> SyscallError {
+        match x {
+            FileHandleError::NotSeekable => SyscallError::FsNotSeekable,
+            FileHandleError::SeekOutOfRange => SyscallError::FsSeekOutOfRange,
+        }
+    }
 }
 
 pub struct ThreadControlData {
@@ -39,36 +52,97 @@ pub fn setup_syscalls() {
     unsafe { Efer::write(Efer::read() | EferFlags::SYSTEM_CALL_EXTENSIONS) };
 }
 
-extern "C" fn on_symcall_1(a: u64, b: u64, c: u64, sel: u64, e: u64, f: u64, d: u64) {
-    let regs: &mut asm::AllSavedRegisters = unsafe { &mut *(TCD.user_stack_pointer as *mut _) };
+extern "C" fn on_symcall_1(regs: &mut asm::AllSavedRegisters) {
+    //               s.   a.   b.   c.   d.   e.  f.
+    // syscall args: rax, rdi, rsi, rdx, r10, r8, r9
+    // Warning: syscall overwrites rcx with the return pointer and r11 with the previous rflags value.
+    let sel = regs.rax;
+    let a = regs.rdi;
+    let b = regs.rsi;
+    let c = regs.rdx;
+    let d = regs.r10;
+    let e = regs.r8;
+    let f = regs.r9;
 
     println!(
         "Syscall 1.{} 2.{} 3.{} 4.{} 5.{} 6.{} 7.{}",
         sel, a, b, c, d, e, f
     );
 
-    let sysnum = match SyscallCode::try_from(sel) {
+    let sysnum = match SyscallCode::try_from(sel as u64) {
         Ok(x) => x,
         Err(_) => {
-            regs.rax = 1;
+            regs.rax = SyscallError::UnknownSyscall as usize;
             return;
         },
     };
 
-    match sysnum {
-        SyscallCode::EXIT => {
+    regs.rax = match sysnum {
+        SyscallCode::Exit => {
             {
                 let lock = current_task();
                 let mut task = lock.write();
                 task.state = TaskState::Dying;
             }
             switch_to_next_task();
-        },
-        SyscallCode::YIELD => {
-            switch_to_next_task();
+            Ok(())
         }
-    }
-    println!("Returning from syscall")
+        SyscallCode::Yield => {
+            switch_to_next_task();
+            Ok(())
+        }
+
+        SyscallCode::FsOpen => {
+            file_call::open(a, b, c).map(|fd| regs.rdi = fd.get())
+        }
+        SyscallCode::FsHandleSeek => {
+            file_call::seek(a, b)
+        }
+        SyscallCode::FsHandleRead => {
+            file_call::read(a, b, c).map(|x| regs.rdi = x)
+        }
+        SyscallCode::FsHandleClose => {
+            file_call::close(a)
+        }
+
+        SyscallCode::CapabilityClone => {
+            cap_call::clone(a).map(|x| regs.rdi = x )
+        }
+        SyscallCode::CapabilityInspect => {
+            cap_call::inspect(a, b).map(|(x, y)| { regs.rdi = x; regs.rsi = y; } )
+        }
+        SyscallCode::CapabilityRestrict => {
+            cap_call::restrict(a, b, c)
+        }
+        SyscallCode::CapabilityDrop => {
+            cap_call::cdrop(a)
+        }
+
+        SyscallCode::ProcessMyPid => {
+            proc_call::mypid().map(|x| regs.rdi = x.0.get() as usize)
+        }
+        SyscallCode::ProcessSpawn => {
+            proc_call::spawn().map(|x| regs.rdi = x.0.get() as usize)
+        }
+        SyscallCode::ProcessCapShare | SyscallCode::ProcessCapTransfer => {
+            cap_call::process_share_transfer(a, b, sysnum == SyscallCode::ProcessCapTransfer)
+        }
+        SyscallCode::ProcessExec => {
+            proc_call::exec(a, b)
+        }
+
+        SyscallCode::MemoryMapVirt => {
+            memory::map_virt(a, b, c)
+        }
+        SyscallCode::MemoryMapPhys => {
+            memory::map_phys(a, b, c, d)
+        }
+        SyscallCode::MemoryUnmap => {
+            Ok(())
+        }
+
+        _ => Err(SyscallError::UnknownSyscall)
+    }.map(|_| 0).unwrap_or_else(|x| x as usize);
 }
 
 macro_rules! concat_newl {
@@ -79,21 +153,14 @@ macro_rules! concat_newl {
 
 #[naked]
 unsafe extern "C" fn on_syscall_raw() {
-    //               s.   a.   b.   c.   d.   e.  f.
-    // syscall args: rax, rdi, rsi, rdx, r10, r8, r9
-    // C args:       rdi, rsi, rdx, rcx, r8, r9,  stack...
-    // So we just need to put the selector in rcx (why rcx?
-    //   because rcx is not used in the syscall args) and put
-    //   r9 in the stack
-    asm!(concat_newl!(
+    // C args: rdi, rsi, rdx, rcx, r8, r9,  stack...
+    core::arch::asm!(concat_newl!(
         "swapgs",
         "mov fs:[{tcd}@tpoff+{sp_offset}+8], rsp",// save stack pointer
         "mov rsp, fs:[{tcd}@tpoff+{ksp_offset}+8]",// use kernel stack pointer
         asm::save_all_regs!(),
-        "mov rcx, rax",// syscall selector
-        "push r10",// param d
+        "mov rdi, rsp",
         "call {c_syscall}",
-        "pop r10",// remove param d
         asm::load_all_regs!(),
         "mov rsp, fs:[{tcd}@tpoff+{sp_offset}+8]",// use old stack pointer
         "swapgs",

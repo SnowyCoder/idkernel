@@ -8,6 +8,7 @@ extern crate alloc;
 
 use core::panic::PanicInfo;
 
+use alloc::sync::Arc;
 use bootloader::{entry_point, BootInfo};
 
 use kerneltest::{allocator, allocator::get_frame_allocator, arch::{
@@ -16,7 +17,7 @@ use kerneltest::{allocator, allocator::get_frame_allocator, arch::{
             self, fix_bootloader_pollution,
             globalize_kernelspace,
         },
-    }, context::{TaskContext, set_current_task_id, switch_to_next_task, tasks_mut}, gdt, println, syscalls::{self, start_initproc}, vga_framebuffer::init_vga_framebuffer};
+    }, context::{TaskContext, set_current_task_id, switch_to_next_task, tasks_mut}, file::InitFsFolderHandle, gdt, println, syscalls::{self, start_initproc}, vga_framebuffer::init_vga_framebuffer};
 
 entry_point!(kernel_main);
 
@@ -32,6 +33,7 @@ fn kernel_main(boot_info: &'static mut BootInfo) -> ! {
     // Now we can write to screen
 
     println!("Setting up GDT");
+
     kerneltest::init();
 
     unsafe {
@@ -76,8 +78,15 @@ fn run_executor() -> ! {
         set_current_task_id(init_id);
 
         // initproc task = a normal task used to run the init process
-        let ctx = TaskContext::create(start_initproc);
-        tasks_mut().add(ctx);
+        let ctx = TaskContext::create(init_id, start_initproc);
+        let ctx_id = ctx.id;
+        {// Add init file system
+            let mut root = ctx.files.root.write();
+            root.mount("init", Arc::new(InitFsFolderHandle::from_init_dir("init".into())));
+        }
+        let mut tasks = tasks_mut();
+        tasks.add(ctx);
+        tasks.queue_for_execution(ctx_id);
     }
     loop {
         if !switch_to_next_task() {

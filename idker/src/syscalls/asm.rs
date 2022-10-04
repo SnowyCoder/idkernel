@@ -27,9 +27,11 @@ macro_rules! load_specified_regs {
 
 macro_rules! create_specified_reg_struct {
     ($name:ident, $($prex:ident),*, [$($x:ident),+]) => {
+        #[derive(Debug)]
+        #[repr(C)]
         pub struct $name {
-            $(pub $prex: u64,)*
-            $(pub $x: u64,)*
+            $(pub $prex: usize,)*
+            $(pub $x: usize,)*
         }
     };
 }

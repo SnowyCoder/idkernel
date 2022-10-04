@@ -2,6 +2,7 @@
 
 pub use include_dir_macros::include_dir;
 
+#[derive(Clone, Copy)]
 pub struct InitDir(pub &'static [(&'static str, InitDirEntry)]);
 
 impl InitDir {
@@ -12,6 +13,7 @@ impl InitDir {
     }
 }
 
+#[derive(Clone, Copy)]
 pub enum InitDirEntry {
     File(&'static [u8]),
     Folder(InitDir),

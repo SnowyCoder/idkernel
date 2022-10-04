@@ -18,12 +18,14 @@ impl TaskRegistry {
 
     pub fn add(&mut self, ctx: TaskContext) {
         let id = ctx.id;
+        let parent = ctx.parent;
         let wrapped = Arc::new(RwLock::new(ctx));
         if self.tasks.insert(id, wrapped).is_some() {
             panic!("Task with same ID already present");
         }
-        if id.0.get() as u64 != 1 {
-            self.executable_tasks.push_back(id);
+        if let Some(p) = parent {
+            let mut parent = self.tasks.get(&p).unwrap().write();
+            parent.children.push(id);
         }
     }
 
@@ -32,6 +34,21 @@ impl TaskRegistry {
     }
 
     pub fn remove(&mut self, id: TaskId) -> Option<Arc<RwLock<TaskContext>>> {
-        self.tasks.remove(&id)
+        let task = self.tasks.remove(&id);
+        if let Some(t) = &task {
+            let task = t.read();
+
+            if let Some(parent) = task.parent.and_then(|id| self.tasks.get(&id)) {
+                let mut p = parent.write();
+                if let Some(index) = p.children.iter().position(|x| *x == task.id) {
+                    p.children.remove(index);
+                }
+            }
+        }
+        task
+    }
+
+    pub fn queue_for_execution(&mut self, id: TaskId) {
+        self.executable_tasks.push_back(id);
     }
 }

@@ -19,6 +19,7 @@ struct ListNode {
 pub struct FixedSizeBlockAllocator {
     list_heads: [Option<&'static mut ListNode>; BLOCK_SIZES.len()],
     fallback_allocator: linked_list_allocator::Heap,
+    block_free: usize, // Size of free RAM pre-allocated into fixed-blocks lists
 }
 
 /// Choose an appropriate block size for the given layout.
@@ -36,6 +37,7 @@ impl FixedSizeBlockAllocator {
         FixedSizeBlockAllocator {
             list_heads: [EMPTY; BLOCK_SIZES.len()],
             fallback_allocator: linked_list_allocator::Heap::empty(),
+            block_free: 0,
         }
     }
 
@@ -56,6 +58,18 @@ impl FixedSizeBlockAllocator {
             Err(_) => ptr::null_mut(),
         }
     }
+
+    pub fn size(&self) -> usize {
+        self.fallback_allocator.size()
+    }
+
+    pub fn used(&self) -> usize {
+        self.fallback_allocator.used() - self.block_free
+    }
+
+    pub fn free(&self) -> usize {
+        self.fallback_allocator.free() + self.block_free
+    }
 }
 
 unsafe impl GlobalAlloc for Locked<FixedSizeBlockAllocator> {
@@ -65,6 +79,7 @@ unsafe impl GlobalAlloc for Locked<FixedSizeBlockAllocator> {
             Some(index) => match allocator.list_heads[index].take() {
                 Some(node) => {
                     allocator.list_heads[index] = node.next.take();
+                    allocator.block_free -= BLOCK_SIZES[index];
                     node as *mut ListNode as *mut u8
                 }
                 None => {
@@ -93,6 +108,7 @@ unsafe impl GlobalAlloc for Locked<FixedSizeBlockAllocator> {
                 let new_node_ptr = ptr as *mut ListNode;
                 new_node_ptr.write(new_node);
                 allocator.list_heads[index] = Some(&mut *new_node_ptr);
+                allocator.block_free += BLOCK_SIZES[index];
             }
             None => {
                 let ptr = NonNull::new(ptr).unwrap();

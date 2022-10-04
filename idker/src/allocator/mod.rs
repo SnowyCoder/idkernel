@@ -42,6 +42,18 @@ impl<A> Locked<A> {
     }
 }
 
+pub fn free() -> usize {
+    ALLOCATOR.lock().free()
+}
+
+pub fn used() -> usize {
+    ALLOCATOR.lock().used()
+}
+
+pub fn size() -> usize {
+    ALLOCATOR.lock().size()
+}
+
 pub fn init_heap(regions: &MemoryRegions) {
     let mut boot_frame_alloc = get_boot_frame_allocator();
     let mut mapper = get_page_table();

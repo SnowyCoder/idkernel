@@ -56,7 +56,7 @@ pub unsafe extern "C" fn switch_task(_from: &ContextRegs, _to: &ContextRegs) {
     // Caller saved: r10, r11, and all of the args
     // Callee saved: rbx, rbp, r12, r13, r14, r15
     // So our args are: from -> rdi, to -> rsi
-    asm! {
+    core::arch::asm! {
         // Load new cr3 (if necessary)
         "mov rcx, cr3",                     // Get old cr3
         "mov rax, [rsi + {offset_cr3}]",    // Get new cr3
