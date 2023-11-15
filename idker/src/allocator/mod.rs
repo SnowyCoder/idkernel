@@ -7,7 +7,7 @@ use crate::{
     memory::MemorySize,
     println,
 };
-use bootloader::boot_info::MemoryRegions;
+use bootloader_api::info::MemoryRegions;
 use fixed_size_block::FixedSizeBlockAllocator;
 use x86_64::{
     structures::paging::{

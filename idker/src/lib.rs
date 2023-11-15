@@ -1,5 +1,5 @@
 #![no_std]
-#![feature(asm_const, asm_sym)]
+#![feature(asm_const)]
 #![feature(abi_x86_interrupt)]
 #![feature(alloc_error_handler)]
 #![feature(allocator_api)]
@@ -10,8 +10,8 @@
 #![feature(naked_functions)]
 #![feature(thread_local)]
 #![feature(type_alias_impl_trait)]
-#![feature(generators)]
-#![feature(generator_trait)]
+#![feature(coroutines)]
+#![feature(iter_from_coroutine)]
 #![cfg_attr(test, no_main)]
 #![test_runner(crate::test_runner)]
 #![reexport_test_harness_main = "test_main"]
@@ -35,8 +35,6 @@ pub mod capability;
 pub mod syscalls;
 pub mod task;
 pub mod vga_framebuffer;
-
-pub use utils::geniter::GenIter;
 
 #[cfg(test)]
 entry_point!(test_kernel_main);

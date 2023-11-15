@@ -1,12 +1,13 @@
+use alloc::boxed::Box;
 use itertools::Itertools;
 use x86_64::{VirtAddr, structures::paging::{PageSize, PageTable, PageTableFlags, Size1GiB, Size2MiB, Size4KiB, Translate}};
 
-use crate::{GenIter, println, utils::shortflags::ShortFlags};
+use crate::{println, utils::shortflags::ShortFlags};
 
 use super::{get_page_table, physical_memory_offset};
 
 pub fn explore_page_ranges() -> impl Iterator<Item = (VirtAddr, VirtAddr, PageTableFlags)> {
-    let my_genm = GenIter::from(static || unsafe {
+    let my_genm = core::iter::from_coroutine(Box::pin(static || unsafe {
         let offset = physical_memory_offset();
         let mut table = get_page_table();
         let table = table.level_4_table();
@@ -58,7 +59,7 @@ pub fn explore_page_ranges() -> impl Iterator<Item = (VirtAddr, VirtAddr, PageTa
                 }
             }
         }
-    });
+    }));
     let removed_fields =
         PageTableFlags::ACCESSED | PageTableFlags::DIRTY | PageTableFlags::HUGE_PAGE;
     my_genm

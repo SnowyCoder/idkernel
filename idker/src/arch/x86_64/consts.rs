@@ -1,4 +1,4 @@
-use bootloader::{boot_info::Optional, BootInfo};
+use bootloader_api::{info::Optional, BootInfo};
 
 pub const KERNEL_BASE: u64 = 0xFFFF_8000_0000_0000;
 // Actually the first 0x0010_0000 (1MiB) addresses are not mapped! (zero page trap? oh well)

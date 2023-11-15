@@ -13,7 +13,7 @@ pub fn init(rsdp_addr: u64) {
     let tables = unsafe { AcpiTables::from_rsdp(handler, rsdp_addr as usize) }
         .expect("Unable to parse ACPI tables");
 
-    println!("rev: {}", tables.revision);
+    println!("rev: {}", tables.revision());
     let platform_info = tables
         .platform_info()
         .expect("Unable to parse platform info");

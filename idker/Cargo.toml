@@ -4,9 +4,6 @@ version = "0.1.0"
 authors = ["Rossi Lorenzo <snowycoder@gmail.com>"]
 edition = "2018"
 
-[workspace]
-members = ["boot"]
-
 [[test]]
 name = "should_panic"
 harness = false
@@ -22,7 +19,7 @@ syscall = { path = "../syscall", default-features=false, features=["alloc"] }
 bitflags = "1.3"
 itertools = { version="0.10", default-features=false, features=["use_alloc"] }
 num_enum = { version="0.5", default-features=false }
-bootloader = "0.10"
+bootloader_api = "0.11"
 memoffset = { version="0.6", features=["unstable_const"]}
 volatile = "0.4"
 spin = "0.9"
@@ -31,7 +28,7 @@ uart_16550 = "0.2"
 pic8259 = "0.10.2"
 pc-keyboard = "0.5"
 linked_list_allocator = "0.9.0"
-acpi = "4.0"
+acpi = "5.0"
 raw-cpuid = "10.2"
 font8x8 = { version="0.2", default-features=false, features=["unicode"] }
 goblin = { version="0.4", default-features=false, features=["elf64"] }
@@ -57,14 +54,6 @@ default-features = false
 version = "0.3"
 default-features = false
 features = ["alloc"]
-
-[package.metadata.bootloader]
-map-physical-memory = true
-
-boot-info-address      = "0xFFFF_9000_0000_0000"
-framebuffer-address    = "0xFFFF_9000_4000_0000"
-kernel-stack-address   = "0xFFFF_9000_8000_0000"
-physical-memory-offset = "0xFFFF_A000_0000_0000"
 
 [profile.dev]
 #panic = "abort"

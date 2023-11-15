@@ -10,7 +10,7 @@ use acpi::platform::{Processor, ProcessorInfo, ProcessorState};
 use alloc::boxed::Box;
 use core::{
     intrinsics::{atomic_load_seqcst, atomic_store_seqcst},
-    sync::atomic::{AtomicBool, Ordering},
+    sync::atomic::{AtomicBool, Ordering}, alloc::Allocator,
 };
 use x86_64::{
     registers::control::Cr3,
@@ -88,7 +88,7 @@ pub fn init_ap_processor(p: &Processor) {
     println!("AP {} READY!", p.processor_uid);
 }
 
-pub fn init(proc_info: &ProcessorInfo) {
+pub fn init<A: Allocator>(proc_info: &ProcessorInfo<A>) {
     println!("Initializing multicore");
 
     println!("Writing trampoline...");

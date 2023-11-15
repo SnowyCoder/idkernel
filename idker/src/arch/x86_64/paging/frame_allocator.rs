@@ -1,4 +1,4 @@
-use bootloader::boot_info::{MemoryRegion, MemoryRegionKind, MemoryRegions};
+use bootloader_api::info::{MemoryRegion, MemoryRegionKind, MemoryRegions};
 use conquer_once::spin::OnceCell;
 use spin::{Mutex, MutexGuard};
 use x86_64::{

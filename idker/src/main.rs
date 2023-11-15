@@ -9,17 +9,27 @@ extern crate alloc;
 use core::panic::PanicInfo;
 
 use alloc::sync::Arc;
-use bootloader::{entry_point, BootInfo};
+use bootloader_api::{entry_point, BootInfo, BootloaderConfig, config::Mapping};
 
 use kerneltest::{allocator, allocator::get_frame_allocator, arch::{
-        consts::check_boot_info,
+        consts::{self, check_boot_info},
         paging::{
             self, fix_bootloader_pollution,
             globalize_kernelspace,
         },
     }, context::{TaskContext, set_current_task_id, switch_to_next_task, tasks_mut}, file::InitFsFolderHandle, gdt, println, syscalls::{self, start_initproc}, vga_framebuffer::init_vga_framebuffer};
 
-entry_point!(kernel_main);
+
+pub static BOOTLOADER_CONFIG: BootloaderConfig = {
+    let mut config = BootloaderConfig::new_default();
+    config.mappings.boot_info = Mapping::FixedAddress(consts::KERNEL_BOOTDATA_START);
+    config.mappings.framebuffer = Mapping::FixedAddress(consts::KERNEL_BOOTDATA_FRAMEBUFFER);
+    config.mappings.kernel_stack = Mapping::FixedAddress(consts::KERNEL_INITIAL_STACK);
+    config.mappings.physical_memory = Some(Mapping::FixedAddress(consts::KERNEL_PHYSICAL_MEMORY_START));
+    config
+};
+
+entry_point!(kernel_main, config=&BOOTLOADER_CONFIG);
 
 fn kernel_main(boot_info: &'static mut BootInfo) -> ! {
     check_boot_info(boot_info);

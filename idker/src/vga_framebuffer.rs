@@ -1,5 +1,5 @@
 use alloc::fmt;
-use bootloader::boot_info::{FrameBuffer, PixelFormat};
+use bootloader_api::info::{FrameBuffer, PixelFormat};
 use conquer_once::spin::OnceCell;
 use font8x8::BASIC_UNICODE;
 use spin::Mutex;
@@ -19,8 +19,8 @@ pub struct VgaColorWriter {
 
 impl VgaColorWriter {
     pub fn new(buffer: &'static mut FrameBuffer) -> Self {
-        let max_x = buffer.info().horizontal_resolution / 8;
-        let max_y = buffer.info().vertical_resolution / 8;
+        let max_x = buffer.info().width / 8;
+        let max_y = buffer.info().height / 8;
         VgaColorWriter {
             buffer,
             curr_x: 0,
@@ -35,8 +35,8 @@ impl VgaColorWriter {
     pub fn fill_rect(&mut self, x: usize, y: usize, w: usize, h: usize, color: Color) {
         let index = (y * self.buffer.info().stride + x) * 8 * self.buffer.info().bytes_per_pixel;
         let pixels = match self.buffer.info().pixel_format {
-            PixelFormat::RGB => 3,
-            PixelFormat::BGR => 3,
+            PixelFormat::Rgb => 3,
+            PixelFormat::Bgr => 3,
             PixelFormat::U8 => 1,
             _ => panic!("Unrecognized format"),
         };
@@ -58,8 +58,8 @@ impl VgaColorWriter {
         let image = BASIC_UNICODE[c as usize];
         let mut i = 0;
         let pixels = match self.buffer.info().pixel_format {
-            PixelFormat::RGB => 3,
-            PixelFormat::BGR => 3,
+            PixelFormat::Rgb => 3,
+            PixelFormat::Bgr => 3,
             PixelFormat::U8 => 1,
             _ => panic!("Unrecognized format"),
         };

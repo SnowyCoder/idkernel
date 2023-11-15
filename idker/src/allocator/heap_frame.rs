@@ -1,7 +1,7 @@
 use core::num::NonZeroU64;
 
 use alloc::{boxed::Box, vec::Vec};
-use bootloader::boot_info::{MemoryRegionKind, MemoryRegions};
+use bootloader_api::info::{MemoryRegionKind, MemoryRegions};
 use conquer_once::spin::OnceCell;
 use spin::{Mutex, MutexGuard};
 use x86_64::{
